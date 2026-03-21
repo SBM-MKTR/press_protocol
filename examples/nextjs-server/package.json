@@ -6,12 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "vercel-build": "cd ../.. && pnpm install --no-frozen-lockfile && pnpm -r build",
-    "start": "next start"
+    "start": "next start",
+    "db:migrate": "tsx --env-file=.env.local scripts/migrate.ts",
+    "db:seed": "tsx --env-file=.env.local scripts/seed.ts"
   },
   "dependencies": {
     "@ton-x402/core": "workspace:*",
     "@ton-x402/middleware": "workspace:*",
     "@ton-x402/facilitator": "workspace:*",
+    "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.36.4",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -22,6 +26,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.0"
   }
 }

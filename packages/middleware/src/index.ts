@@ -27,6 +27,13 @@ export interface PaymentGateOptions {
     description?: string;
 }
 
+export const INTERNAL_PAYMENT_FROM_HEADER = "x-x402-payment-from";
+export const INTERNAL_PAYMENT_QUERY_ID_HEADER = "x-x402-payment-query-id";
+export const INTERNAL_PAYMENT_TX_HASH_HEADER = "x-x402-payment-tx-hash";
+export const INTERNAL_PAYMENT_AMOUNT_HEADER = "x-x402-payment-amount";
+export const INTERNAL_PAYMENT_ASSET_HEADER = "x-x402-payment-asset";
+export const INTERNAL_PAYMENT_NETWORK_HEADER = "x-x402-payment-network";
+
 // ============================================================
 // Facilitator client helpers
 // ============================================================
@@ -193,7 +200,21 @@ export function paymentGate(
         }
 
         // Step 3: Payment confirmed — call the actual handler
-        const handlerResponse = await handler(request);
+        const handlerHeaders = new Headers(request.headers);
+        handlerHeaders.set(INTERNAL_PAYMENT_FROM_HEADER, paymentPayload.fromAddress);
+        handlerHeaders.set(INTERNAL_PAYMENT_QUERY_ID_HEADER, paymentPayload.queryId);
+        handlerHeaders.set(INTERNAL_PAYMENT_TX_HASH_HEADER, settleResult.txHash ?? "");
+        handlerHeaders.set(INTERNAL_PAYMENT_AMOUNT_HEADER, paymentDetails.amount);
+        handlerHeaders.set(INTERNAL_PAYMENT_ASSET_HEADER, paymentDetails.asset);
+        handlerHeaders.set(INTERNAL_PAYMENT_NETWORK_HEADER, paymentDetails.network);
+
+        const enrichedRequest = request.bodyUsed
+            ? new Request(request.url, {
+                method: request.method,
+                headers: handlerHeaders,
+            })
+            : new Request(request, { headers: handlerHeaders });
+        const handlerResponse = await handler(enrichedRequest);
 
         // Step 4: Add PAYMENT-RESPONSE header
         const settlement: SettlementResponse = {

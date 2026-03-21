@@ -14,11 +14,15 @@ const handler = (_request: Request) => {
     return Response.json({ joke, timestamp: new Date().toISOString() });
 };
 
-export const GET = paymentGate(handler, {
-    config: getPaymentConfig({
-        amount: "10000000", // 0.01 BSA USD (9 decimals)
-        asset: process.env.JETTON_MASTER_ADDRESS || "kQCd6G7c_HUBkgwtmGzpdqvHIQoNkYOEE0kSWoc5v57hPPnW",
-        description: "Random developer joke (0.01 BSA USD)",
-        decimals: 9,
-    }),
-});
+export async function GET(request: Request) {
+    const gatedHandler = paymentGate(handler, {
+        config: getPaymentConfig({
+            amount: "10000000",
+            asset: process.env.JETTON_MASTER_ADDRESS || "kQCd6G7c_HUBkgwtmGzpdqvHIQoNkYOEE0kSWoc5v57hPPnW",
+            description: "Random developer joke (0.01 BSA USD)",
+            decimals: 9,
+        }),
+    });
+
+    return gatedHandler(request);
+}

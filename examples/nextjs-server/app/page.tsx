@@ -62,7 +62,7 @@ export default function HomePage() {
           <a href="/feed" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Articles</a>
           <a href="/register" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Publish</a>
           <a href="/about" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>About</a>
-          <a href="/press" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
+          <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
         </div>
       </nav>
 
@@ -79,7 +79,7 @@ export default function HomePage() {
           Any journalist, anywhere in the world, gets paid directly by their readers in BSA USD stablecoin. No bank. No middleman. No platform taking a cut.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
-          <a href="/press" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "14px 28px", borderRadius: 10, fontSize: 16, fontWeight: 700, textDecoration: "none" }}>Read an article</a>
+          <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "14px 28px", borderRadius: 10, fontSize: 16, fontWeight: 700, textDecoration: "none" }}>Read an article</a>
           <a href="/register" style={{ background: "transparent", color: "white", padding: "14px 28px", borderRadius: 10, fontSize: 16, fontWeight: 700, textDecoration: "none", border: "1px solid #1e293b" }}>Publish your story</a>
         </div>
       </div>
@@ -116,7 +116,7 @@ export default function HomePage() {
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
           {articles.slice(0, 4).map(article => (
-            <a key={article.id} href="/press" style={{ textDecoration: "none" }}>
+            <a key={article.id} href={`/press?id=${article.id}`} style={{ textDecoration: "none" }}>
               <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16, padding: "1.25rem", cursor: "pointer", transition: "border-color 0.2s" }}>
                 <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
                   <span style={{ background: "#14b8a622", color: "#14b8a6", padding: "2px 8px", borderRadius: 20, fontSize: 11 }}>{article.category}</span>
