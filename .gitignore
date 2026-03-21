@@ -7,3 +7,4 @@ examples/.env
 *.tsbuildinfo
 .idea/
 examples/nextjs-server/.env.local
+.vercel
