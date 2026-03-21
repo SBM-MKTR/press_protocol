@@ -149,5 +149,6 @@ export default function PressPage() {
 
       </div>
     </div>
+    </div>
   );
 }
