@@ -12,6 +12,7 @@ const SPLITS = [
 const ARTICLE = {
   title: "Water Crisis in Senegal: The Villages Being Left Behind",
   author: "Amara Diallo",
+  authorId: "amara-diallo",
   location: "Thiès, Senegal",
   preview: "In the rural outskirts of Thiès, Senegal, thousands of families walk up to 8 kilometers daily just to access clean water. Local authorities have repeatedly promised infrastructure that never arrives.",
   content: `In the rural outskirts of Thiès, Senegal, thousands of families walk up to 8 kilometers daily just to access clean water. Local authorities have repeatedly promised infrastructure that never arrives.
@@ -51,11 +52,10 @@ export default function PressPage() {
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "2rem 1.5rem" }}>
 
         <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "2.5rem", textDecoration: "none" }}>
-  <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "2.5rem", textDecoration: "none" }}>
-  <div style={{ background: "#14b8a6", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "#0a0f1e" }}>P</div>
-  <span style={{ fontWeight: 600, fontSize: 16, color: "#14b8a6" }}>Press Protocol</span>
-  <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b" }}>Powered by TON</span>
-</a>
+          <div style={{ background: "#14b8a6", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "#0a0f1e" }}>P</div>
+          <span style={{ fontWeight: 600, fontSize: 16, color: "#14b8a6" }}>Press Protocol</span>
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b" }}>Powered by TON</span>
+        </a>
 
         <div style={{ marginBottom: "1.5rem" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
@@ -64,7 +64,9 @@ export default function PressPage() {
             <span style={{ background: "#1e293b", color: "#94a3b8", padding: "3px 10px", borderRadius: 20, fontSize: 12 }}>{ARTICLE.readCount.toLocaleString()} readers</span>
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.3, marginBottom: 8 }}>{ARTICLE.title}</h1>
-          <p style={{ color: "#94a3b8", fontSize: 14 }}>By <a href="/journalist/amara-diallo" style={{ color: "#14b8a6", textDecoration: "none", fontWeight: 600 }}>{ARTICLE.author}</a> · Press Protocol</p>
+          <p style={{ color: "#94a3b8", fontSize: 14 }}>
+            By <a href={`/journalist/${ARTICLE.authorId}`} style={{ color: "#14b8a6", textDecoration: "none", fontWeight: 600 }}>{ARTICLE.author}</a> · Press Protocol
+          </p>
         </div>
 
         {state === "unlocked" && (
@@ -148,7 +150,6 @@ export default function PressPage() {
         </div>
 
       </div>
-    </div>
     </div>
   );
 }
