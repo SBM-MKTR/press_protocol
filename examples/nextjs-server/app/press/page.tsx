@@ -63,7 +63,7 @@ export default function PressPage() {
             <span style={{ background: "#1e293b", color: "#94a3b8", padding: "3px 10px", borderRadius: 20, fontSize: 12 }}>{ARTICLE.readCount.toLocaleString()} readers</span>
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.3, marginBottom: 8 }}>{ARTICLE.title}</h1>
-          <p style={{ color: "#94a3b8", fontSize: 14 }}>By <span style={{ color: "#14b8a6" }}>{ARTICLE.author}</span> · Press Protocol</p>
+          <p style={{ color: "#94a3b8", fontSize: 14 }}>By <a href="/journalist/amara-diallo" style={{ color: "#14b8a6", textDecoration: "none", fontWeight: 600 }}>{ARTICLE.author}</a> · Press Protocol</p>
         </div>
 
         {state === "unlocked" && (
