@@ -1,7 +1,6 @@
-import { getAllArticles } from "../press/articles";
+import { listPublishedArticles } from "../../../lib/repositories/articles";
 
 export const GET = async () => {
-  const articles = getAllArticles();
+  const articles = await listPublishedArticles();
   return Response.json({ articles });
 };
-

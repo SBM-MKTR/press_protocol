@@ -8,7 +8,7 @@ import {
     INTERNAL_PAYMENT_QUERY_ID_HEADER,
     INTERNAL_PAYMENT_TX_HASH_HEADER,
 } from "@ton-x402/middleware";
-import { getPaymentConfig } from "../../../lib/payment-config";
+import { getPaymentConfig } from "../../../../../lib/payment-config";
 import {
     createPaymentAttemptForArticle,
     getPublishedArticleById,
@@ -16,19 +16,18 @@ import {
     markPaymentAttemptAsRequired,
     markPaymentAttemptAsSubmitted,
     recordConfirmedArticleUnlock,
-} from "../../../lib/repositories/articles";
-import { getPriceTier } from "../../../lib/pricing";
+} from "../../../../../lib/repositories/articles";
+import { getPriceTier } from "../../../../../lib/pricing";
 
 const PAYMENT_ATTEMPT_HEADER = "x-press-payment-attempt-id";
 
-export async function POST(request: Request) {
-    const body = await request.json().catch(() => ({}));
-    const articleId =
-        typeof body?.articleId === "string" && body.articleId.length > 0
-            ? body.articleId
-            : "demo";
+export async function POST(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> },
+) {
+    const { id } = await params;
+    const article = await getPublishedArticleById(id);
 
-    const article = await getPublishedArticleById(articleId);
     if (!article) {
         return Response.json({ error: "Article not found" }, { status: 404 });
     }
@@ -38,7 +37,7 @@ export async function POST(request: Request) {
     let paymentAttemptId = request.headers.get(PAYMENT_ATTEMPT_HEADER);
 
     if (!paymentAttemptId && !hasPaymentSignature) {
-        const attempt = await createPaymentAttemptForArticle(articleId);
+        const attempt = await createPaymentAttemptForArticle(id);
         paymentAttemptId = attempt?.id ?? null;
     }
 
@@ -58,7 +57,7 @@ export async function POST(request: Request) {
         }
 
         const updatedArticle = await recordConfirmedArticleUnlock({
-            articleId,
+            articleId: id,
             paymentAttemptId,
             payerWallet,
             txHash,
@@ -80,9 +79,11 @@ export async function POST(request: Request) {
                 title: updatedArticle.title,
                 author: updatedArticle.authorName,
                 content: updatedArticle.content,
-                contributors: updatedArticle.contributors,
+                category: updatedArticle.category,
+                location: updatedArticle.location,
                 readCount: updatedArticle.readCount,
                 nextPriceDisplay: updatedPrice.display,
+                contributors: updatedArticle.contributors,
             },
             payment: {
                 message: "Payment confirmed. Full article unlocked.",
@@ -117,7 +118,7 @@ export async function POST(request: Request) {
     if (paymentAttemptId && hasPaymentSignature && response.status >= 400) {
         await markPaymentAttemptAsFailed(
             paymentAttemptId,
-            `Legacy /api/press unlock failed with HTTP ${response.status}`,
+            `Unlock request failed with HTTP ${response.status}`,
         );
     }
 

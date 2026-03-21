@@ -14,7 +14,7 @@ export default function AboutPage() {
           <a href="/feed" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Articles</a>
           <a href="/register" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Publish</a>
           <a href="/about" style={{ color: "#14b8a6", fontSize: 14, textDecoration: "none", fontWeight: 600 }}>About</a>
-          <a href="/press" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
+          <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
         </div>
       </nav>
 
@@ -113,7 +113,7 @@ export default function AboutPage() {
           <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 12 }}>Ready to get started?</h2>
           <p style={{ color: "#94a3b8", fontSize: 15, marginBottom: "2rem", lineHeight: 1.7 }}>Read journalism that matters. Pay journalists directly. Or publish your own story and get paid instantly.</p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-            <a href="/press" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "12px 24px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none" }}>Read an article</a>
+            <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "12px 24px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none" }}>Read an article</a>
             <a href="/register" style={{ background: "transparent", color: "white", padding: "12px 24px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none", border: "1px solid #1e293b" }}>Publish your story</a>
           </div>
         </div>

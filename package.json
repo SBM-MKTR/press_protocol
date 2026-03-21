@@ -11,6 +11,8 @@
     "dev": "pnpm dev:server",
     "dev:server": "pnpm --filter x402-nextjs-example dev",
     "start:server": "pnpm --filter x402-nextjs-example start",
+    "db:migrate": "pnpm --filter x402-nextjs-example db:migrate",
+    "db:seed": "pnpm --filter x402-nextjs-example db:seed",
     "dev:client": "pnpm --filter x402-client-example pay",
     "dev:client:joke": "pnpm --filter x402-client-example pay:joke",
     "address": "pnpm --filter x402-client-example address --",

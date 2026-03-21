@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-    title: "Press Protocol — Reader-funded journalism on TON",
-    description: "Pay per article with BSA USD stablecoin. Payments flow directly to journalists, editors, and contributors via the x402 protocol on TON.",
+    title: "Press Protocol",
+    description: "Telegram-native journalism payments on TON with transparent contributor economics.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

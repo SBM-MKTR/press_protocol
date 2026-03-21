@@ -1,9 +1,11 @@
 import type { PaymentConfig } from "@ton-x402/core";
+import { getPaymentRuntimeEnv } from "./env";
 
 export function getPaymentConfig(
     overrides?: Partial<PaymentConfig>,
 ): PaymentConfig {
-    const payTo = overrides?.payTo ?? process.env.PAYMENT_ADDRESS;
+    const env = getPaymentRuntimeEnv();
+    const payTo = overrides?.payTo ?? env.paymentAddress;
     if (!payTo) {
         throw new Error("Missing PAYMENT_ADDRESS env variable — set it to your TON wallet address");
     }
@@ -12,10 +14,10 @@ export function getPaymentConfig(
         amount: overrides?.amount ?? "100000000", // 0.1 TON default
         asset: overrides?.asset ?? "TON",
         payTo,
-        network: (process.env.TON_NETWORK as "testnet" | "mainnet") ?? "testnet",
+        network: overrides?.network ?? env.tonNetwork,
         facilitatorUrl:
             overrides?.facilitatorUrl ??
-            process.env.FACILITATOR_URL ??
+            env.facilitatorUrl ??
             "http://localhost:3000/api/facilitator",
         description: overrides?.description,
         decimals: overrides?.decimals,
