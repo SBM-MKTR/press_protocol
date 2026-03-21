@@ -4,3 +4,4 @@ export const GET = async () => {
   const articles = getAllArticles();
   return Response.json({ articles });
 };
+
