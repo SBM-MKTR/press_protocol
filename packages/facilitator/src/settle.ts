@@ -44,11 +44,18 @@ export async function settleBoc(
         settlementCache.set(cacheKey, { timestamp: Date.now() });
 
         // Broadcast the BOC
+        // Note: TonConnect wallet flows may broadcast before the server does.
+        // We swallow broadcast errors and proceed to poll — the tx may already be on-chain.
         const bocBuffer = Buffer.from(paymentPayload.boc, "base64");
         console.log(`[settle] Broadcasting BOC for queryId=${paymentPayload.queryId} from=${paymentPayload.fromAddress}`);
         console.log(`[settle] Asset=${paymentDetails.asset} amount=${paymentDetails.amount} payTo=${paymentDetails.payTo}`);
-        await client.sendFile(bocBuffer);
-        console.log(`[settle] BOC broadcast OK`);
+        try {
+            await client.sendFile(bocBuffer);
+            console.log(`[settle] BOC broadcast OK`);
+        } catch (broadcastErr) {
+            // Pre-broadcast by client (e.g. TonConnect) is expected — proceed to poll
+            console.log(`[settle] Broadcast skipped (already submitted?): ${(broadcastErr as Error).message}`);
+        }
 
         // Wait for on-chain confirmation
         const destAddress = Address.parse(paymentDetails.payTo);

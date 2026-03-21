@@ -17,7 +17,8 @@
     "react-dom": "^19.0.0",
     "@ton/core": "^0.62.0",
     "@ton/ton": "^15.0.0",
-    "@ton/crypto": "^3.3.0"
+    "@ton/crypto": "^3.3.0",
+    "@tonconnect/ui-react": "^2.0.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -26,7 +26,7 @@ The regional water authority declined multiple requests for comment. Three offic
 
 This investigation was funded directly by 1,847 readers who pre-paid for this story before a single word was written. No advertiser. No publisher. No editor telling Amara which stories are worth telling.`,
     price: "50000000",
-    priceDisplay: "0.05 BSA USD",
+    priceDisplay: "0.10 BSA USD",
     readCount: 1847,
     splits: [
       { role: "Journalist", percent: 65 },
