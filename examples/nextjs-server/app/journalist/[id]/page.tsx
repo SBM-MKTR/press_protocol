@@ -148,7 +148,7 @@ export default function JournalistPage() {
         <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
           <a href="/feed" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Articles</a>
           <a href="/register" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Publish</a>
-          <a href="/press" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
+          <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
         </div>
       </nav>
 
@@ -191,7 +191,7 @@ export default function JournalistPage() {
         <div style={{ marginBottom: "2rem" }}>
           <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: "1rem" }}>Published stories</h2>
           {journalist.articles.map(article => (
-            <a key={article.id} href="/press" style={{ textDecoration: "none" }}>
+            <a key={article.id} href={`/press?id=${article.id}`} style={{ textDecoration: "none" }}>
               <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16, padding: "1.25rem", marginBottom: 12, cursor: "pointer" }}>
                 <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   <span style={{ background: "#14b8a622", color: "#14b8a6", padding: "2px 8px", borderRadius: 20, fontSize: 11 }}>{article.category}</span>
@@ -212,7 +212,7 @@ export default function JournalistPage() {
         <div style={{ background: "#14b8a611", border: "1px solid #14b8a633", borderRadius: 16, padding: "1.5rem", textAlign: "center" }}>
           <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Support {journalist.name.split(" ")[0]}'s reporting</h3>
           <p style={{ fontSize: 14, color: "#94a3b8", marginBottom: "1.5rem", lineHeight: 1.7 }}>Every article you read pays {journalist.name.split(" ")[0]} directly in BSA USD — instantly, on the TON blockchain, with no middleman.</p>
-          <a href="/press" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "12px 24px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none" }}>
+          <a href={`/press?id=${journalist.articles[0]?.id ?? "demo"}`} style={{ background: "#14b8a6", color: "#0a0f1e", padding: "12px 24px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none" }}>
             Read & support now
           </a>
         </div>

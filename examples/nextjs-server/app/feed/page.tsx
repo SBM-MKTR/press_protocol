@@ -12,7 +12,7 @@ type Article = {
   preview: string;
   priceDisplay: string;
   readCount: number;
-  splits: { role: string; percent: number }[];
+  contributors: { role: string; percent: number }[];
 };
 
 export default function FeedPage() {
@@ -56,7 +56,7 @@ export default function FeedPage() {
         <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
           <a href="/feed" style={{ color: "#14b8a6", fontSize: 14, textDecoration: "none", fontWeight: 600 }}>Articles</a>
           <a href="/register" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Publish</a>
-          <a href="/press" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
+          <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
         </div>
       </nav>
 
@@ -96,7 +96,7 @@ export default function FeedPage() {
           {filtered.map(article => {
             const tier = getPriceTier(article.readCount);
             return (
-              <a key={article.id} href="/press" style={{ textDecoration: "none" }}>
+              <a key={article.id} href={`/press?id=${article.id}`} style={{ textDecoration: "none" }}>
                 <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16, padding: "1.5rem", cursor: "pointer" }}>
                   <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
                     <span style={{ background: "#14b8a622", color: "#14b8a6", padding: "3px 10px", borderRadius: 20, fontSize: 12 }}>{article.category}</span>
@@ -113,7 +113,7 @@ export default function FeedPage() {
                       <div>
                         <div style={{ fontSize: 13, color: "#94a3b8", fontWeight: 500 }}>{article.author}</div>
                         <div style={{ fontSize: 11, color: "#475569" }}>
-                          {article.splits.map(s => `${s.role} ${s.percent}%`).join(" · ")}
+                          {article.contributors.map(s => `${s.role} ${s.percent}%`).join(" · ")}
                         </div>
                       </div>
                     </div>
