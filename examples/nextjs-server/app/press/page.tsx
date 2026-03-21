@@ -50,11 +50,11 @@ export default function PressPage() {
     <div style={{ minHeight: "100vh", background: "#0a0f1e", color: "white", fontFamily: "sans-serif" }}>
       <div style={{ maxWidth: 680, margin: "0 auto", padding: "2rem 1.5rem" }}>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "2.5rem" }}>
-          <div style={{ background: "#14b8a6", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "#0a0f1e" }}>P</div>
-          <span style={{ fontWeight: 600, fontSize: 16, color: "#14b8a6" }}>Press Protocol</span>
-          <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b" }}>Powered by TON</span>
-        </div>
+        <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "2.5rem", textDecoration: "none" }}>
+  <div style={{ background: "#14b8a6", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "#0a0f1e" }}>P</div>
+  <span style={{ fontWeight: 600, fontSize: 16, color: "#14b8a6" }}>Press Protocol</span>
+  <span style={{ marginLeft: "auto", fontSize: 12, color: "#64748b" }}>Powered by TON</span>
+</a>
 
         <div style={{ marginBottom: "1.5rem" }}>
           <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
