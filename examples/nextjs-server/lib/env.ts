@@ -8,6 +8,8 @@ export type ServerEnv = {
     rpcApiKey?: string;
 };
 
+export type PaymentRuntimeEnv = Omit<ServerEnv, "databaseUrl">;
+
 function readEnv(name: string): string | undefined {
     const value = process.env[name];
     if (!value) return undefined;
@@ -22,10 +24,16 @@ export function getServerEnv(): ServerEnv {
         throw new Error("Missing DATABASE_URL env variable");
     }
 
+    return {
+        databaseUrl,
+        ...getPaymentRuntimeEnv(),
+    };
+}
+
+export function getPaymentRuntimeEnv(): PaymentRuntimeEnv {
     const tonNetwork = readEnv("TON_NETWORK") === "mainnet" ? "mainnet" : "testnet";
 
     return {
-        databaseUrl,
         tonNetwork,
         paymentAddress: readEnv("PAYMENT_ADDRESS"),
         jettonMasterAddress: readEnv("JETTON_MASTER_ADDRESS"),

@@ -12,7 +12,9 @@ import { getPaymentConfig } from "../../../lib/payment-config";
 import {
     createPaymentAttemptForArticle,
     getPublishedArticleById,
+    markPaymentAttemptAsFailed,
     markPaymentAttemptAsRequired,
+    markPaymentAttemptAsSubmitted,
     recordConfirmedArticleUnlock,
 } from "../../../lib/repositories/articles";
 import { getPriceTier } from "../../../lib/pricing";
@@ -100,10 +102,23 @@ export async function POST(request: Request) {
         }),
     });
 
+    if (paymentAttemptId && hasPaymentSignature) {
+        await markPaymentAttemptAsSubmitted(paymentAttemptId, {
+            paymentMethod: "x402",
+        });
+    }
+
     const response = await gatedHandler(request);
 
     if (paymentAttemptId && !hasPaymentSignature && response.status === 402) {
         await markPaymentAttemptAsRequired(paymentAttemptId);
+    }
+
+    if (paymentAttemptId && hasPaymentSignature && response.status >= 400) {
+        await markPaymentAttemptAsFailed(
+            paymentAttemptId,
+            `Legacy /api/press unlock failed with HTTP ${response.status}`,
+        );
     }
 
     const headers = new Headers(response.headers);

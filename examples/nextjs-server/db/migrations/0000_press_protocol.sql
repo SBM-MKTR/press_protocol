@@ -1,8 +1,20 @@
-create type contributor_role as enum ('Journalist', 'Editor', 'Translator', 'Photographer', 'Protocol');
+do $$ begin
+    create type contributor_role as enum ('Journalist', 'Editor', 'Translator', 'Photographer', 'Protocol');
+exception
+    when duplicate_object then null;
+end $$;
 --> statement-breakpoint
-create type payment_attempt_status as enum ('created', 'payment_required', 'submitted', 'confirmed', 'failed');
+do $$ begin
+    create type payment_attempt_status as enum ('created', 'payment_required', 'submitted', 'confirmed', 'failed');
+exception
+    when duplicate_object then null;
+end $$;
 --> statement-breakpoint
-create type payment_method as enum ('x402', 'tonconnect');
+do $$ begin
+    create type payment_method as enum ('x402', 'tonconnect');
+exception
+    when duplicate_object then null;
+end $$;
 --> statement-breakpoint
 create table if not exists articles (
     id text primary key,
