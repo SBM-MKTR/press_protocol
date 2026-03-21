@@ -176,3 +176,17 @@ export function getPriceDisplay(articleId: string): string {
   if (count < 1000) return "0.05 BSA USD";
   return "0.10 BSA USD";
 }
+export function getAllArticles() {
+  return Object.entries(ARTICLES).map(([id, article]) => ({
+    id,
+    title: article.title,
+    author: article.author,
+    location: article.location,
+    category: article.category,
+    preview: article.preview,
+    priceDisplay: article.priceDisplay,
+    currentPrice: getPrice(id),
+    readCount: article.readCount,
+    splits: article.splits,
+  }));
+}

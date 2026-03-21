@@ -8,3 +8,4 @@ examples/.env
 .idea/
 examples/nextjs-server/.env.local
 .vercel
+.env*.local
