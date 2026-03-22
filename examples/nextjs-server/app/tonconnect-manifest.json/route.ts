@@ -8,11 +8,6 @@ function normalizeBaseUrl(value: string) {
 }
 
 async function getBaseUrl() {
-    const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-    if (configured) {
-        return normalizeBaseUrl(configured);
-    }
-
     const requestHeaders = await headers();
     const forwardedProto = requestHeaders.get("x-forwarded-proto");
     const forwardedHost = requestHeaders.get("x-forwarded-host");
@@ -20,6 +15,11 @@ async function getBaseUrl() {
 
     if (host) {
         return `${forwardedProto ?? "https"}://${host}`;
+    }
+
+    const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    if (configured) {
+        return normalizeBaseUrl(configured);
     }
 
     return "http://localhost:3000";

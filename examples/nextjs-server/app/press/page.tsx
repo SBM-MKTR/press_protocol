@@ -10,7 +10,13 @@ import {
 import { beginCell, Address } from "@ton/core";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
+import {
+    CHAIN,
+    useIsConnectionRestored,
+    useTonAddress,
+    useTonConnectUI,
+    useTonWallet,
+} from "@tonconnect/ui-react";
 
 type Contributor = {
     name: string;
@@ -197,6 +203,8 @@ function PressPageContent() {
 
     const [tonConnectUI] = useTonConnectUI();
     const rawAddress = useTonAddress(false);
+    const tonWallet = useTonWallet();
+    const isConnectionRestored = useIsConnectionRestored();
     const isConnected = rawAddress.length > 0;
     const activePrice = article?.priceDisplay ?? "Loading...";
 
@@ -232,6 +240,9 @@ function PressPageContent() {
         const handleMainButton = () => {
             if (status === "awaiting_payment") {
                 if (isConnected) {
+                    if (!isConnectionRestored) {
+                        return;
+                    }
                     void handleWalletPay();
                 } else {
                     tonConnectUI.openModal();
@@ -239,7 +250,12 @@ function PressPageContent() {
                 return;
             }
 
-            if (status !== "loading" && status !== "processing" && status !== "unlocked") {
+            if (
+                status !== "loading" &&
+                status !== "processing" &&
+                status !== "unlocked" &&
+                (!isConnected || isConnectionRestored)
+            ) {
                 void handlePay();
             }
         };
@@ -260,19 +276,25 @@ function PressPageContent() {
             tg.MainButton.show();
         } else if (status === "awaiting_payment") {
             tg.MainButton.setParams({
-                text: isConnected ? `Pay ${activePrice}` : "Connect TON Wallet",
+                text: !isConnected
+                    ? "Connect TON Wallet"
+                    : !isConnectionRestored
+                      ? "Restoring wallet session..."
+                      : `Pay ${activePrice}`,
                 is_visible: true,
-                is_active: true,
-                color: isConnected ? "#14b8a6" : "#1d4ed8",
-                text_color: isConnected ? "#0a0f1e" : "#ffffff",
+                is_active: !isConnected || isConnectionRestored,
+                color: !isConnected ? "#1d4ed8" : "#14b8a6",
+                text_color: !isConnected ? "#ffffff" : "#0a0f1e",
             });
             tg.MainButton.show();
             tg.onEvent?.("mainButtonClicked", handleMainButton);
         } else if (article) {
             tg.MainButton.setParams({
-                text: `Unlock for ${activePrice}`,
+                text: isConnected && !isConnectionRestored
+                    ? "Restoring wallet session..."
+                    : `Unlock for ${activePrice}`,
                 is_visible: true,
-                is_active: true,
+                is_active: !isConnected || isConnectionRestored,
                 color: "#14b8a6",
                 text_color: "#0a0f1e",
             });
@@ -293,6 +315,7 @@ function PressPageContent() {
         article,
         articleId,
         isConnected,
+        isConnectionRestored,
         paymentAttempt,
         paymentEndpoints,
         paymentRequired,
@@ -736,6 +759,12 @@ function PressPageContent() {
             return;
         }
 
+        if (!isConnectionRestored || !tonWallet?.account) {
+            setError("Wallet connection is still restoring. Wait a moment, then try again.");
+            setStatus("awaiting_payment");
+            return;
+        }
+
         if (!paymentRequired || !article || !paymentAttempt) {
             setError("Create a payment request before opening the wallet.");
             setStatus("error");
@@ -753,6 +782,14 @@ function PressPageContent() {
         setError("");
 
         try {
+            const expectedChain =
+                tonOption.network === "testnet" ? CHAIN.TESTNET : CHAIN.MAINNET;
+            if (tonWallet.account.chain !== expectedChain) {
+                throw new Error(
+                    `Connected wallet is on the wrong network. Expected ${tonOption.network}.`,
+                );
+            }
+
             const jwRes = await fetch(
                 `/api/press/jetton-wallet?owner=${encodeURIComponent(rawAddress)}`,
                 {
@@ -781,6 +818,8 @@ function PressPageContent() {
 
             const result = (await tonConnectUI.sendTransaction({
                 validUntil: Math.floor(Date.now() / 1000) + 300,
+                network: expectedChain,
+                from: tonWallet.account.address,
                 messages: [
                     {
                         address: senderJettonWallet,
@@ -1086,6 +1125,13 @@ function PressPageContent() {
                                     >
                                         Connect TON Wallet to Pay
                                     </button>
+                                ) : !isConnectionRestored ? (
+                                    <button
+                                        disabled
+                                        style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: "#1e293b", color: "#94a3b8", fontSize: 14, fontWeight: 700, cursor: "default" }}
+                                    >
+                                        Restoring wallet session...
+                                    </button>
                                 ) : (
                                     <button
                                         onClick={handleWalletPay}
@@ -1118,21 +1164,38 @@ function PressPageContent() {
                         {status !== "unlocked" && status !== "awaiting_payment" && (
                             <button
                                 onClick={handlePay}
-                                disabled={status === "processing" || status === "loading"}
+                                disabled={
+                                    status === "processing" ||
+                                    status === "loading" ||
+                                    (isConnected && !isConnectionRestored)
+                                }
                                 style={{
                                     width: "100%",
                                     padding: "15px 16px",
                                     borderRadius: 14,
                                     border: "none",
-                                    background: status === "processing" ? "#1e293b" : "#14b8a6",
-                                    color: status === "processing" ? "#94a3b8" : "#0a0f1e",
+                                    background:
+                                        status === "processing" || (isConnected && !isConnectionRestored)
+                                            ? "#1e293b"
+                                            : "#14b8a6",
+                                    color:
+                                        status === "processing" || (isConnected && !isConnectionRestored)
+                                            ? "#94a3b8"
+                                            : "#0a0f1e",
                                     fontSize: 15,
                                     fontWeight: 800,
-                                    cursor: status === "processing" ? "default" : "pointer",
+                                    cursor:
+                                        status === "processing" || (isConnected && !isConnectionRestored)
+                                            ? "default"
+                                            : "pointer",
                                     marginBottom: "0.75rem",
                                 }}
                             >
-                                {status === "processing" ? "Confirming on TON blockchain…" : `Pay ${activePrice} to unlock`}
+                                {status === "processing"
+                                    ? "Confirming on TON blockchain…"
+                                    : isConnected && !isConnectionRestored
+                                      ? "Restoring wallet session..."
+                                      : `Pay ${activePrice} to unlock`}
                             </button>
                         )}
 
