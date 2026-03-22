@@ -9,7 +9,12 @@ import {
 } from "@ton-x402/core";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useTonConnectUI, useTonAddress, useTonWallet, CHAIN } from "@tonconnect/ui-react";
+import { useTonConnectUI, useTonAddress, useTonWallet } from "@tonconnect/ui-react";
+
+// TON chain IDs — raw string literals, not the CHAIN enum (which can cause
+// DOMException / URL-parse errors in some bundler/Safari combinations).
+const TON_CHAIN_MAINNET = "-239";
+const TON_CHAIN_TESTNET = "-3";
 import { beginCell, Address } from "@ton/core";
 
 type Contributor = {
@@ -86,7 +91,7 @@ function PressPageContent() {
     const rawAddress = useTonAddress(false);
     const wallet = useTonWallet();
     const isConnected = !!rawAddress;
-    const isMainnet = wallet?.account.chain === CHAIN.MAINNET;
+    const isMainnet = wallet?.account?.chain === TON_CHAIN_MAINNET;
     const isWrongNetwork = isConnected && isMainnet;
 
     useEffect(() => {
