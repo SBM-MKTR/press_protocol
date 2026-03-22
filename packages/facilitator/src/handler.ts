@@ -75,7 +75,10 @@ export function createSettleHandler(config: FacilitatorConfig) {
 
             const result = await settleBoc(body.paymentPayload, body.paymentDetails, settleOptions);
 
-            const status = result.success ? 200 : 500;
+            const isTimeout =
+                typeof result.error === "string" &&
+                result.error.toLowerCase().includes("timeout");
+            const status = result.success || isTimeout ? 200 : 500;
             return Response.json(result, { status });
         } catch (err) {
             return Response.json(

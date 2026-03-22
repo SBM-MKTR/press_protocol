@@ -4,6 +4,7 @@ import {
     type SettleResponse,
 } from "@ton-x402/core";
 import { TonClient, Address, Cell, Transaction } from "@ton/ton";
+import { beginCell } from "@ton/core";
 
 export interface SettleOptions {
     client: TonClient;
@@ -59,9 +60,17 @@ export async function settleBoc(
 
         // Wait for on-chain confirmation
         const destAddress = Address.parse(paymentDetails.payTo);
+        const fromAddress = Address.parse(paymentPayload.fromAddress);
         const startTime = Date.now();
         const queryId = paymentPayload.queryId;
         const expectedAmount = BigInt(paymentDetails.amount);
+        const assetIsTon = paymentDetails.asset === "TON";
+        const recipientJettonWallet = assetIsTon
+            ? null
+            : await resolveJettonWalletAddress(client, paymentDetails.asset, destAddress).catch(() => null);
+        const senderJettonWallet = assetIsTon
+            ? null
+            : await resolveJettonWalletAddress(client, paymentDetails.asset, fromAddress).catch(() => null);
 
         let pollCount = 0;
         while (Date.now() - startTime < timeoutMs) {
@@ -69,21 +78,45 @@ export async function settleBoc(
             pollCount++;
 
             try {
-                const transactions = await client.getTransactions(destAddress, {
-                    limit: 10,
-                });
+                const pollTargets = [
+                    { label: "owner", address: destAddress },
+                    ...(recipientJettonWallet
+                        ? [{ label: "recipient-jetton", address: recipientJettonWallet }]
+                        : []),
+                ];
 
-                console.log(`[settle] Poll #${pollCount} — found ${transactions.length} txs on ${paymentDetails.payTo}`);
+                for (const target of pollTargets) {
+                    const transactions = await client.getTransactions(target.address, {
+                        limit: 20,
+                    });
 
-                for (const tx of transactions) {
-                    const inMsg = tx.inMessage;
-                    if (inMsg?.info.type === "internal") {
-                        const slice = inMsg.body.beginParse();
-                        const op = slice.remainingBits >= 32 ? slice.preloadUint(32) : -1;
-                        console.log(`[settle]   tx op=0x${op.toString(16)} from=${inMsg.info.src?.toString()}`);
-                    }
-                    const match = matchTransaction(tx, paymentPayload.fromAddress, expectedAmount, queryId);
-                    if (match) {
+                    console.log(
+                        `[settle] Poll #${pollCount} — found ${transactions.length} txs on ${target.label}:${target.address.toString()}`,
+                    );
+
+                    for (const tx of transactions) {
+                        const inMsg = tx.inMessage;
+                        if (inMsg?.info.type === "internal") {
+                            const slice = inMsg.body.beginParse();
+                            const op = slice.remainingBits >= 32 ? slice.preloadUint(32) : -1;
+                            console.log(
+                                `[settle]   tx on ${target.label} op=0x${op.toString(16)} from=${inMsg.info.src?.toString()}`,
+                            );
+                        }
+
+                        const match = matchTransaction(tx, {
+                            expectedOwnerWallet: destAddress,
+                            expectedRecipientJettonWallet: recipientJettonWallet,
+                            expectedSenderWallet: fromAddress,
+                            expectedSenderJettonWallet: senderJettonWallet,
+                            expectedAmount,
+                            queryId,
+                            asset: paymentDetails.asset,
+                        });
+                        if (!match) {
+                            continue;
+                        }
+
                         const txHash = tx.hash().toString("hex");
                         console.log(`[settle] MATCH found! txHash=${txHash}`);
                         return { success: true, txHash };
@@ -110,9 +143,15 @@ export async function settleBoc(
 
 function matchTransaction(
     tx: Transaction,
-    fromAddress: string,
-    expectedAmount: bigint,
-    queryId: string,
+    options: {
+        expectedOwnerWallet: Address;
+        expectedRecipientJettonWallet: Address | null;
+        expectedSenderWallet: Address;
+        expectedSenderJettonWallet: Address | null;
+        expectedAmount: bigint;
+        queryId: string;
+        asset: string;
+    },
 ): boolean {
     const inMsg = tx.inMessage;
     if (!inMsg) return false;
@@ -124,31 +163,37 @@ function matchTransaction(
     if (slice.remainingBits < 32) return false;
     const op = slice.loadUint(32);
 
-    if (op === 0) {
+    if (options.asset === "TON" && op === 0) {
         // Standard TON transfer with comment
         const text = slice.loadStringTail();
-        if (text === `x402:${queryId}`) {
-            try {
-                const expectedSender = Address.parse(fromAddress);
-                return info.src.equals(expectedSender) && info.value.coins >= expectedAmount;
-            } catch {
-                return false;
-            }
+        if (text === `x402:${options.queryId}`) {
+            return (
+                info.src.equals(options.expectedSenderWallet) &&
+                info.dest.equals(options.expectedOwnerWallet) &&
+                info.value.coins >= options.expectedAmount
+            );
         }
-    } else if (op === 0x7362d09c) {
+    } else if (options.asset !== "TON" && op === 0x7362d09c) {
         // Jetton transfer_notification
         // transfer_notification#7362d09c query_id:uint64 amount:(VarUint 16) sender:MsgAddress forward_payload:(Either Cell ^Cell)
+        if (!options.expectedRecipientJettonWallet) return false;
+        if (!info.dest.equals(options.expectedOwnerWallet)) return false;
+        if (!info.src.equals(options.expectedRecipientJettonWallet)) return false;
         if (slice.remainingBits < 64) return false;
-        slice.loadUint(64); // skip query_id
+        const notificationQueryId = slice.loadUintBig(64).toString();
+        if (notificationQueryId !== options.queryId) return false;
 
         const jettonAmount = slice.loadCoins();
-        if (jettonAmount < expectedAmount) return false;
+        if (jettonAmount < options.expectedAmount) return false;
 
-        const initiator = slice.loadAddress();
-        try {
-            const expectedInitiator = Address.parse(fromAddress);
-            if (!initiator.equals(expectedInitiator)) return false;
-        } catch {
+        const sender = slice.loadAddress();
+        const senderMatchesOwner = sender?.equals(options.expectedSenderWallet) ?? false;
+        const senderMatchesJettonWallet =
+            options.expectedSenderJettonWallet
+                ? sender?.equals(options.expectedSenderJettonWallet) ?? false
+                : false;
+
+        if (!senderMatchesOwner && !senderMatchesJettonWallet) {
             return false;
         }
 
@@ -159,7 +204,45 @@ function matchTransaction(
             const innerOp = payloadSlice.loadUint(32);
             if (innerOp === 0) {
                 const text = payloadSlice.loadStringTail();
-                if (text === `x402:${queryId}`) {
+                if (text === `x402:${options.queryId}`) {
+                    return true;
+                }
+            }
+        }
+    } else if (options.asset !== "TON" && op === 0x178d4519) {
+        // internal_transfer on the recipient jetton wallet
+        if (!options.expectedRecipientJettonWallet) return false;
+        if (!info.dest.equals(options.expectedRecipientJettonWallet)) return false;
+
+        if (slice.remainingBits < 64) return false;
+        const internalQueryId = slice.loadUintBig(64).toString();
+        if (internalQueryId !== options.queryId) return false;
+
+        const jettonAmount = slice.loadCoins();
+        if (jettonAmount < options.expectedAmount) return false;
+
+        const from = slice.loadAddress();
+        const fromMatchesOwner = from?.equals(options.expectedSenderWallet) ?? false;
+        const fromMatchesJettonWallet =
+            options.expectedSenderJettonWallet
+                ? from?.equals(options.expectedSenderJettonWallet) ?? false
+                : false;
+
+        if (!fromMatchesOwner && !fromMatchesJettonWallet) {
+            return false;
+        }
+
+        slice.loadAddress(); // response_address
+        const forwardTonAmount = slice.loadCoins();
+        if (forwardTonAmount <= 0n) return false;
+
+        if (slice.remainingBits < 1) return false;
+        const payloadSlice = slice.loadBit() ? slice.loadRef().beginParse() : slice;
+        if (payloadSlice.remainingBits >= 32) {
+            const innerOp = payloadSlice.loadUint(32);
+            if (innerOp === 0) {
+                const text = payloadSlice.loadStringTail();
+                if (text === `x402:${options.queryId}`) {
                     return true;
                 }
             }
@@ -167,6 +250,19 @@ function matchTransaction(
     }
 
     return false;
+}
+
+async function resolveJettonWalletAddress(
+    client: TonClient,
+    jettonMaster: string,
+    owner: Address,
+) {
+    const masterAddress = Address.parse(jettonMaster);
+    const result = await client.runMethod(masterAddress, "get_wallet_address", [
+        { type: "slice", cell: beginCell().storeAddress(owner).endCell() },
+    ]);
+
+    return result.stack.readAddress();
 }
 
 function sleep(ms: number): Promise<void> {
