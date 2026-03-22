@@ -12,7 +12,6 @@ export default function AboutPage() {
         </a>
         <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
           <a href="/feed" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Articles</a>
-          <a href="/register" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Publish</a>
           <a href="/about" style={{ color: "#14b8a6", fontSize: 14, textDecoration: "none", fontWeight: 600 }}>About</a>
           <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
         </div>
@@ -57,7 +56,7 @@ export default function AboutPage() {
         <div style={{ marginBottom: "3rem" }}>
           <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: "1.5rem" }}>Our solution</h2>
           {[
-            { num: "01", color: "#14b8a6", title: "Atomic split payments", desc: "One reader payment automatically splits between journalist, editor, translator, and photographer in a single TON transaction. Every person in the production chain gets paid in the same moment, with mathematical certainty, with no invoice and no NET-90 payment terms." },
+            { num: "01", color: "#14b8a6", title: "Transparent contributor economics", desc: "Every article declares who contributed, what share each role should earn, and how value should flow once the payment settles. Readers see the economics before they unlock, and the backend persists the payment and access grant." },
             { num: "02", color: "#6366f1", title: "Dynamic pricing", desc: "Each article is a live market. Prices rise with readership — early supporters pay less, established stories charge more. This creates an information market where value is set by readers, not advertisers. Pre-payments fund investigations before they're written." },
             { num: "03", color: "#f59e0b", title: "Censorship-resistant income", desc: "TON wallet + Telegram = no bank needed. No platform can freeze payments. A journalist in Belarus gets paid by readers in Germany. A reporter in Myanmar receives funds from supporters in Japan. Their income stream cannot be seized, frozen, or blocked." },
           ].map(s => (
@@ -111,10 +110,10 @@ export default function AboutPage() {
         {/* CTA */}
         <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 20, padding: "2.5rem", textAlign: "center" }}>
           <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 12 }}>Ready to get started?</h2>
-          <p style={{ color: "#94a3b8", fontSize: 15, marginBottom: "2rem", lineHeight: 1.7 }}>Read journalism that matters. Pay journalists directly. Or publish your own story and get paid instantly.</p>
+          <p style={{ color: "#94a3b8", fontSize: 15, marginBottom: "2rem", lineHeight: 1.7 }}>Read journalism that matters, unlock it with a TON wallet, and inspect the contributor economics before you pay.</p>
           <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
             <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "12px 24px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none" }}>Read an article</a>
-            <a href="/register" style={{ background: "transparent", color: "white", padding: "12px 24px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none", border: "1px solid #1e293b" }}>Publish your story</a>
+            <a href="/feed" style={{ background: "transparent", color: "white", padding: "12px 24px", borderRadius: 10, fontSize: 15, fontWeight: 700, textDecoration: "none", border: "1px solid #1e293b" }}>Browse the feed</a>
           </div>
         </div>
 

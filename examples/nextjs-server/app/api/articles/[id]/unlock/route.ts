@@ -22,6 +22,19 @@ import { getPriceTier } from "../../../../../lib/pricing";
 
 const PAYMENT_ATTEMPT_HEADER = "x-press-payment-attempt-id";
 
+async function shouldKeepAttemptPending(response: Response) {
+    if (response.status !== 402) {
+        return false;
+    }
+
+    const text = await response.clone().text().catch(() => "");
+    const normalized = text.toLowerCase();
+    return (
+        normalized.includes("settlement timeout") ||
+        normalized.includes("may still confirm")
+    );
+}
+
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> },
@@ -121,10 +134,13 @@ export async function POST(
     }
 
     if (paymentAttemptId && hasPaymentSignature && response.status >= 400) {
-        await markPaymentAttemptAsFailed(
-            paymentAttemptId,
-            `Unlock request failed with HTTP ${response.status}`,
-        );
+        const keepPending = await shouldKeepAttemptPending(response);
+        if (!keepPending) {
+            await markPaymentAttemptAsFailed(
+                paymentAttemptId,
+                `Unlock request failed with HTTP ${response.status}`,
+            );
+        }
     }
 
     const headers = new Headers(response.headers);

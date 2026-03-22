@@ -3,16 +3,16 @@ import { useState, useEffect } from "react";
 
 const STATS = [
   { value: "900M", label: "Telegram users" },
-  { value: "1.6M", label: "Unmonetized journalists" },
-  { value: "0%", label: "Platform cut" },
-  { value: "<2s", label: "Payment speed" },
+  { value: "5", label: "Contributor roles modeled" },
+  { value: "3", label: "Live price tiers" },
+  { value: "Testnet", label: "TON settlement today" },
 ];
 
 const INNOVATIONS = [
   {
     icon: "⚡",
-    title: "Atomic split payments",
-    description: "One reader payment automatically splits between journalist, editor, translator, and photographer — in a single TON transaction. No invoices. No waiting. No middleman.",
+    title: "Transparent contributor economics",
+    description: "Every article shows who contributed, what share each role earns, and what the protocol is designed to route. Readers understand the economics before they pay.",
     color: "#14b8a6",
   },
   {
@@ -60,7 +60,6 @@ export default function HomePage() {
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
           <a href="/feed" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Articles</a>
-          <a href="/register" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Publish</a>
           <a href="/about" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>About</a>
           <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
         </div>
@@ -76,11 +75,11 @@ export default function HomePage() {
           <span style={{ color: "#14b8a6" }}>for global journalism</span>
         </h1>
         <p style={{ fontSize: 18, color: "#94a3b8", lineHeight: 1.7, maxWidth: 600, margin: "0 auto 2.5rem" }}>
-          Any journalist, anywhere in the world, gets paid directly by their readers in BSA USD stablecoin. No bank. No middleman. No platform taking a cut.
+          Readers unlock reporting inside Telegram. Payments settle on TON, article access persists by wallet, and contributor economics are visible from the first click.
         </p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "14px 28px", borderRadius: 10, fontSize: 16, fontWeight: 700, textDecoration: "none" }}>Read an article</a>
-          <a href="/register" style={{ background: "transparent", color: "white", padding: "14px 28px", borderRadius: 10, fontSize: 16, fontWeight: 700, textDecoration: "none", border: "1px solid #1e293b" }}>Publish your story</a>
+          <a href="/feed" style={{ background: "transparent", color: "white", padding: "14px 28px", borderRadius: 10, fontSize: 16, fontWeight: 700, textDecoration: "none", border: "1px solid #1e293b" }}>Browse the feed</a>
         </div>
       </div>
 

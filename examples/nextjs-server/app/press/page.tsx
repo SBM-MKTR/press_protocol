@@ -158,7 +158,12 @@ function getStoredAttemptKey(articleId: string) {
 
 function readStoredAttemptId(articleId: string) {
     if (typeof window === "undefined") return null;
-    return window.sessionStorage.getItem(getStoredAttemptKey(articleId));
+
+    const key = getStoredAttemptKey(articleId);
+    return (
+        window.sessionStorage.getItem(key) ??
+        window.localStorage.getItem(key)
+    );
 }
 
 function writeStoredAttemptId(articleId: string, attemptId: string | null) {
@@ -167,10 +172,12 @@ function writeStoredAttemptId(articleId: string, attemptId: string | null) {
     const key = getStoredAttemptKey(articleId);
     if (!attemptId) {
         window.sessionStorage.removeItem(key);
+        window.localStorage.removeItem(key);
         return;
     }
 
     window.sessionStorage.setItem(key, attemptId);
+    window.localStorage.setItem(key, attemptId);
 }
 
 function PressPageContent() {
@@ -191,6 +198,7 @@ function PressPageContent() {
     const [tonConnectUI] = useTonConnectUI();
     const rawAddress = useTonAddress(false);
     const isConnected = rawAddress.length > 0;
+    const activePrice = article?.priceDisplay ?? "Loading...";
 
     useEffect(() => {
         const tg = (window as any)?.Telegram?.WebApp;
@@ -206,6 +214,93 @@ function PressPageContent() {
         });
     }, []);
 
+    useEffect(() => {
+        const tg = (window as any)?.Telegram?.WebApp;
+        if (!tg?.MainButton || !tg?.BackButton) {
+            return;
+        }
+
+        const handleBack = () => {
+            if (window.history.length > 1) {
+                window.history.back();
+                return;
+            }
+
+            window.location.href = "/feed";
+        };
+
+        const handleMainButton = () => {
+            if (status === "awaiting_payment") {
+                if (isConnected) {
+                    void handleWalletPay();
+                } else {
+                    tonConnectUI.openModal();
+                }
+                return;
+            }
+
+            if (status !== "loading" && status !== "processing" && status !== "unlocked") {
+                void handlePay();
+            }
+        };
+
+        tg.BackButton.show();
+        tg.onEvent?.("backButtonClicked", handleBack);
+
+        if (status === "unlocked") {
+            tg.MainButton.hide();
+        } else if (status === "processing" || status === "loading") {
+            tg.MainButton.setParams({
+                text: "Confirming payment...",
+                is_visible: true,
+                is_active: false,
+                color: "#1e293b",
+                text_color: "#94a3b8",
+            });
+            tg.MainButton.show();
+        } else if (status === "awaiting_payment") {
+            tg.MainButton.setParams({
+                text: isConnected ? `Pay ${activePrice}` : "Connect TON Wallet",
+                is_visible: true,
+                is_active: true,
+                color: isConnected ? "#14b8a6" : "#1d4ed8",
+                text_color: isConnected ? "#0a0f1e" : "#ffffff",
+            });
+            tg.MainButton.show();
+            tg.onEvent?.("mainButtonClicked", handleMainButton);
+        } else if (article) {
+            tg.MainButton.setParams({
+                text: `Unlock for ${activePrice}`,
+                is_visible: true,
+                is_active: true,
+                color: "#14b8a6",
+                text_color: "#0a0f1e",
+            });
+            tg.MainButton.show();
+            tg.onEvent?.("mainButtonClicked", handleMainButton);
+        } else {
+            tg.MainButton.hide();
+        }
+
+        return () => {
+            tg.offEvent?.("backButtonClicked", handleBack);
+            tg.offEvent?.("mainButtonClicked", handleMainButton);
+            tg.MainButton.hide();
+            tg.BackButton.hide();
+        };
+    }, [
+        activePrice,
+        article,
+        articleId,
+        isConnected,
+        paymentAttempt,
+        paymentEndpoints,
+        paymentRequired,
+        rawAddress,
+        status,
+        tonConnectUI,
+    ]);
+
     function rememberAttempt(nextAttempt: PaymentAttempt | null, endpoints?: PaymentEndpoints | null) {
         setPaymentAttempt(nextAttempt);
         if (endpoints) {
@@ -216,7 +311,9 @@ function PressPageContent() {
     }
 
     async function fetchArticleMetadata(): Promise<Article> {
-        const response = await fetch(`/api/articles/${articleId}`);
+        const response = await fetch(`/api/articles/${articleId}`, {
+            cache: "no-store",
+        });
         const data = await response.json();
 
         if (!response.ok) {
@@ -227,7 +324,9 @@ function PressPageContent() {
     }
 
     async function fetchPaymentAttemptStatus(attemptId: string) {
-        const response = await fetch(`/api/payment-attempts/${attemptId}`);
+        const response = await fetch(`/api/payment-attempts/${attemptId}`, {
+            cache: "no-store",
+        });
         if (!response.ok) {
             if (response.status === 404) {
                 writeStoredAttemptId(articleId, null);
@@ -240,6 +339,22 @@ function PressPageContent() {
 
         const data = await response.json();
         return data.paymentAttempt as PaymentAttempt;
+    }
+
+    async function fetchAccessState(wallet: string) {
+        const response = await fetch(
+            `/api/articles/${articleId}/access?wallet=${encodeURIComponent(wallet)}`,
+            {
+                cache: "no-store",
+            },
+        );
+
+        const data = (await response.json().catch(() => null)) as AccessState | null;
+        if (!response.ok) {
+            return null;
+        }
+
+        return data;
     }
 
     async function syncPaymentAttempt(attemptId: string) {
@@ -256,6 +371,9 @@ function PressPageContent() {
     ) {
         const contentResponse = await fetch(
             `/api/articles/${articleId}/content?wallet=${encodeURIComponent(wallet)}`,
+            {
+                cache: "no-store",
+            },
         );
 
         if (!contentResponse.ok) {
@@ -310,6 +428,58 @@ function PressPageContent() {
         return true;
     }
 
+    async function waitForPaymentResolution(
+        wallet: string,
+        attemptId: string,
+        options?: {
+            timeoutMs?: number;
+            intervalMs?: number;
+            message?: string;
+            txHash?: string | null;
+        },
+    ) {
+        const timeoutMs = options?.timeoutMs ?? 12000;
+        const intervalMs = options?.intervalMs ?? 1500;
+        const deadline = Date.now() + timeoutMs;
+
+        while (Date.now() <= deadline) {
+            const latestAttempt = await fetchPaymentAttemptStatus(attemptId).catch(() => null);
+            if (latestAttempt) {
+                rememberAttempt(latestAttempt);
+            }
+
+            const access = await fetchAccessState(wallet).catch(() => null);
+            if (access?.unlocked) {
+                return restoreUnlockedArticle(wallet, {
+                    message: options?.message ?? "Access restored after payment confirmation.",
+                    pricingTier: article?.priceTier,
+                    paymentAttemptId:
+                        access.confirmedPayment?.paymentAttemptId ??
+                        latestAttempt?.id ??
+                        attemptId,
+                    txHash:
+                        options?.txHash ??
+                        access.confirmedPayment?.txHash ??
+                        latestAttempt?.confirmedPayment?.txHash ??
+                        latestAttempt?.txHash ??
+                        null,
+                });
+            }
+
+            if (latestAttempt?.status === "failed") {
+                break;
+            }
+
+            if (Date.now() + intervalMs > deadline) {
+                break;
+            }
+
+            await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+        }
+
+        return false;
+    }
+
     useEffect(() => {
         let cancelled = false;
 
@@ -361,12 +531,9 @@ function PressPageContent() {
                     return;
                 }
 
-                const accessResponse = await fetch(
-                    `/api/articles/${articleId}/access?wallet=${encodeURIComponent(rawAddress)}`,
-                );
-                const accessData = (await accessResponse.json()) as AccessState;
+                const accessData = await fetchAccessState(rawAddress);
 
-                if (!accessResponse.ok || !accessData.unlocked) {
+                if (!accessData?.unlocked) {
                     return;
                 }
 
@@ -404,6 +571,54 @@ function PressPageContent() {
         };
     }, [articleId, article?.id, article?.priceTier, rawAddress]);
 
+    useEffect(() => {
+        if (!rawAddress || !paymentAttempt || (status !== "awaiting_payment" && status !== "processing")) {
+            return;
+        }
+
+        let cancelled = false;
+
+        const refresh = async () => {
+            if (cancelled) return;
+
+            const restored = await waitForPaymentResolution(rawAddress, paymentAttempt.id, {
+                timeoutMs: 1,
+                intervalMs: 1,
+                message: "Access restored after payment confirmation.",
+            }).catch(() => false);
+
+            if (cancelled || restored) {
+                return;
+            }
+
+            const latestAttempt = await fetchPaymentAttemptStatus(paymentAttempt.id).catch(() => null);
+            if (!cancelled && latestAttempt) {
+                rememberAttempt(latestAttempt);
+            }
+        };
+
+        const intervalId = window.setInterval(() => {
+            void refresh();
+        }, 4000);
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                void refresh();
+            }
+        };
+
+        window.addEventListener("focus", handleVisibilityChange);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        void refresh();
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+            window.removeEventListener("focus", handleVisibilityChange);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [paymentAttempt, rawAddress, status]);
+
     const contributorTotal = useMemo(
         () =>
             (unlockPayload?.article.contributors ?? article?.contributors ?? []).reduce(
@@ -426,6 +641,7 @@ function PressPageContent() {
             if (!activeAttempt) {
                 const intentResponse = await fetch(`/api/articles/${article.id}/payment-intent`, {
                     method: "POST",
+                    cache: "no-store",
                     headers: {
                         "Content-Type": "application/json",
                     },
@@ -463,6 +679,7 @@ function PressPageContent() {
                 endpoints?.unlock ?? `/api/articles/${article.id}/unlock`,
                 {
                     method: "POST",
+                    cache: "no-store",
                     headers: activeAttempt?.id
                         ? { "x-press-payment-attempt-id": activeAttempt.id }
                         : undefined,
@@ -538,6 +755,9 @@ function PressPageContent() {
         try {
             const jwRes = await fetch(
                 `/api/press/jetton-wallet?owner=${encodeURIComponent(rawAddress)}`,
+                {
+                    cache: "no-store",
+                },
             );
             if (!jwRes.ok) {
                 throw new Error("Failed to resolve BSA USD wallet address");
@@ -559,7 +779,7 @@ function PressPageContent() {
                 .storeStringTail(`x402:${queryId}`)
                 .endCell();
 
-            const result = await tonConnectUI.sendTransaction({
+            const result = (await tonConnectUI.sendTransaction({
                 validUntil: Math.floor(Date.now() / 1000) + 300,
                 messages: [
                     {
@@ -568,23 +788,30 @@ function PressPageContent() {
                         payload: jettonTransferBody.toBoc().toString("base64"),
                     },
                 ],
-            });
+            })) as {
+                boc?: string;
+                transaction?: {
+                    hash?: string;
+                };
+            };
 
-            if (!result?.boc) {
-                throw new Error("Wallet did not return a signed BOC for verification");
-            }
+            const signedBoc = typeof result?.boc === "string" ? result.boc : null;
+            const walletTxHash =
+                typeof result?.transaction?.hash === "string" ? result.transaction.hash : undefined;
 
             const submittedResponse = await fetch(
                 paymentEndpoints?.paymentSubmitted ??
                     `/api/payment-attempts/${paymentAttempt.id}/submitted`,
                 {
                     method: "POST",
+                    cache: "no-store",
                     headers: {
                         "Content-Type": "application/json",
                     },
                     body: JSON.stringify({
                         payerWallet: rawAddress,
                         queryId,
+                        txHash: walletTxHash,
                         paymentMethod: "tonconnect",
                     }),
                 },
@@ -601,10 +828,29 @@ function PressPageContent() {
 
             await syncPaymentAttempt(paymentAttempt.id).catch(() => null);
 
+            if (!signedBoc) {
+                const restored = await waitForPaymentResolution(rawAddress, paymentAttempt.id, {
+                    timeoutMs: 12000,
+                    intervalMs: 1500,
+                    message: "Access restored after wallet confirmation.",
+                    txHash: walletTxHash ?? null,
+                });
+
+                if (restored) {
+                    return;
+                }
+
+                setError(
+                    "Your wallet returned to the app without a verifiable signed payload. If the payment completed, reconnect the same wallet and access will restore automatically. For the live demo, Tonkeeper testnet is the safest wallet path.",
+                );
+                setStatus("awaiting_payment");
+                return;
+            }
+
             const encodedPayload = encodePaymentPayload({
                 scheme: "ton-v1",
                 network: tonOption.network,
-                boc: result.boc,
+                boc: signedBoc,
                 fromAddress: rawAddress,
                 queryId,
             });
@@ -618,6 +864,7 @@ function PressPageContent() {
                 paymentEndpoints?.unlock ?? `/api/articles/${article.id}/unlock`,
                 {
                     method: "POST",
+                    cache: "no-store",
                     headers: unlockHeaders,
                 },
             );
@@ -639,6 +886,29 @@ function PressPageContent() {
                     if (restored) {
                         return;
                     }
+                }
+
+                const recovered = await waitForPaymentResolution(rawAddress, paymentAttempt.id, {
+                    timeoutMs: 12000,
+                    intervalMs: 1500,
+                    message: "Access restored after payment confirmation.",
+                    txHash:
+                        latestAttempt?.confirmedPayment?.txHash ??
+                        latestAttempt?.txHash ??
+                        walletTxHash ??
+                        null,
+                });
+
+                if (recovered) {
+                    return;
+                }
+
+                if (latestAttempt?.status === "submitted") {
+                    setError(
+                        "Payment was submitted but confirmation is still pending. Keep this page open or return with the same wallet and the article will restore automatically once settlement completes.",
+                    );
+                    setStatus("awaiting_payment");
+                    return;
                 }
 
                 throw new Error(unlockData?.error || "Payment confirmation failed");
@@ -675,7 +945,6 @@ function PressPageContent() {
     }
 
     const visibleContributors = unlockPayload?.article.contributors ?? article?.contributors ?? [];
-    const activePrice = article?.priceDisplay ?? "Loading...";
     const unlockMessage = unlockPayload?.payment.message;
     const unlockTxHash = unlockPayload?.payment.txHash;
 
@@ -804,6 +1073,12 @@ function PressPageContent() {
                                         </span>
                                     )}
                                 </div>
+                                <div style={{ fontSize: 12, color: "#dbeafe", marginBottom: 12, lineHeight: 1.6 }}>
+                                    Approve the payment in your wallet, then return here. If the app is reopened or the wallet reconnects, Press Protocol will re-check your persisted access automatically.
+                                </div>
+                                <div style={{ fontSize: 12, color: "#dbeafe", marginBottom: 12, lineHeight: 1.6 }}>
+                                    The article price is {activePrice} in BSA USD. Some wallets also show a separate TON amount for jetton-routing gas when they open the approval sheet.
+                                </div>
                                 {!isConnected ? (
                                     <button
                                         onClick={() => tonConnectUI.openModal()}
@@ -875,13 +1150,13 @@ export default function PressPage() {
     return (
         <Suspense
             fallback={
-                <div style={{ minHeight: "100vh", background: "#0a0f1e", color: "white", fontFamily: "sans-serif" }}>
-                    <div style={{ maxWidth: 720, margin: "0 auto", padding: "1.25rem 1rem 3rem" }}>
-                        <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16, padding: "1.5rem", color: "#94a3b8" }}>
-                            Loading article shell...
-                        </div>
-                    </div>
+        <div style={{ minHeight: "100vh", background: "#0a0f1e", color: "white", fontFamily: "sans-serif" }}>
+            <div style={{ maxWidth: 720, margin: "0 auto", padding: "1.25rem 1rem 3rem" }}>
+                <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16, padding: "1.5rem", color: "#94a3b8" }}>
+                    Loading article shell...
                 </div>
+            </div>
+        </div>
             }
         >
             <PressPageContent />

@@ -55,7 +55,7 @@ export default function FeedPage() {
         </a>
         <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
           <a href="/feed" style={{ color: "#14b8a6", fontSize: 14, textDecoration: "none", fontWeight: 600 }}>Articles</a>
-          <a href="/register" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>Publish</a>
+          <a href="/about" style={{ color: "#94a3b8", fontSize: 14, textDecoration: "none" }}>About</a>
           <a href="/press?id=demo" style={{ background: "#14b8a6", color: "#0a0f1e", padding: "6px 16px", borderRadius: 8, fontSize: 14, fontWeight: 600, textDecoration: "none" }}>Read Now</a>
         </div>
       </nav>
