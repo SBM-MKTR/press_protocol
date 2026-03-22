@@ -98,6 +98,7 @@ export default function AboutPage() {
             {[
               { name: "Mohamed Moussa", role: "Backend & Blockchain", init: "MM" },
               { name: "Sohaib MS", role: "Frontend & Design", init: "SMS" },
+              { name: "Khalil Oualdi", role: "Backend Developer", init: "KO" },
             ].map(m => (
               <div key={m.name} style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 16, padding: "1.5rem", flex: 1, textAlign: "center" }}>
                 <div style={{ width: 56, height: 56, background: "#14b8a622", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px", fontSize: 18, fontWeight: 700, color: "#14b8a6" }}>{m.init}</div>
