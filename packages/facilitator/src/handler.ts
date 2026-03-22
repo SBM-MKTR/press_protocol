@@ -70,7 +70,7 @@ export function createSettleHandler(config: FacilitatorConfig) {
 
             const settleOptions: SettleOptions = {
                 client,
-                timeoutMs: config.timeoutMs ?? 60_000,
+                timeoutMs: config.timeoutMs ?? 120_000,
             };
 
             const result = await settleBoc(body.paymentPayload, body.paymentDetails, settleOptions);

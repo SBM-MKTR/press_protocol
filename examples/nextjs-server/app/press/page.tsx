@@ -9,7 +9,7 @@ import {
 } from "@ton-x402/core";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
+import { useTonConnectUI, useTonAddress, useTonWallet, CHAIN } from "@tonconnect/ui-react";
 import { beginCell, Address } from "@ton/core";
 
 type Contributor = {
@@ -84,7 +84,10 @@ function PressPageContent() {
 
     const [tonConnectUI] = useTonConnectUI();
     const rawAddress = useTonAddress(false);
+    const wallet = useTonWallet();
     const isConnected = !!rawAddress;
+    const isMainnet = wallet?.account.chain === CHAIN.MAINNET;
+    const isWrongNetwork = isConnected && isMainnet;
 
     useEffect(() => {
         const tg = (window as any)?.Telegram?.WebApp;
@@ -217,6 +220,10 @@ function PressPageContent() {
     async function handleWalletPay() {
         if (!rawAddress) {
             tonConnectUI.openModal();
+            return;
+        }
+        if (isWrongNetwork) {
+            setError("You are connected to mainnet. This app runs on TON testnet only. Please switch to a testnet wallet.");
             return;
         }
         if (!paymentRequired || !article) return;
@@ -362,6 +369,34 @@ function PressPageContent() {
                     </div>
                 </div>
 
+                {/* Testnet-only banner — always visible */}
+                <div style={{ background: "#1c1400", border: "1px solid #92400e", borderRadius: 12, padding: "10px 14px", marginBottom: "1rem" }}>
+                    <div style={{ fontSize: 13, color: "#fbbf24", fontWeight: 700, marginBottom: 3 }}>
+                        Testnet only
+                    </div>
+                    <div style={{ fontSize: 12, color: "#d97706", lineHeight: 1.5 }}>
+                        This app runs on <strong>TON testnet</strong>. You need a testnet wallet (e.g. Tonkeeper testnet mode) funded with testnet BSA USD tokens. Mainnet wallets cannot pay here.
+                    </div>
+                </div>
+
+                {/* Wrong network warning — shown when mainnet wallet is connected */}
+                {isWrongNetwork && (
+                    <div style={{ background: "#450a0a", border: "1px solid #7f1d1d", borderRadius: 12, padding: "10px 14px", marginBottom: "1rem" }}>
+                        <div style={{ fontSize: 13, color: "#f87171", fontWeight: 700, marginBottom: 3 }}>
+                            Wrong network — mainnet wallet detected
+                        </div>
+                        <div style={{ fontSize: 12, color: "#fca5a5", lineHeight: 1.5 }}>
+                            Your wallet is on TON mainnet. Disconnect it and reconnect using a testnet wallet to pay for articles.
+                        </div>
+                        <button
+                            onClick={() => tonConnectUI.disconnect()}
+                            style={{ marginTop: 8, padding: "6px 14px", borderRadius: 8, border: "none", background: "#7f1d1d", color: "#fecaca", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                        >
+                            Disconnect wallet
+                        </button>
+                    </div>
+                )}
+
                 {telegram.isTelegram && (
                     <div style={{ background: "#14b8a611", border: "1px solid #14b8a633", borderRadius: 12, padding: "10px 14px", marginBottom: "1rem" }}>
                         <div style={{ fontSize: 13, color: "#14b8a6", fontWeight: 600, marginBottom: 4 }}>Telegram Mini App mode</div>
@@ -468,7 +503,14 @@ function PressPageContent() {
                                         onClick={() => tonConnectUI.openModal()}
                                         style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: "#1d4ed8", color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
                                     >
-                                        Connect TON Wallet to Pay
+                                        Connect Testnet Wallet to Pay
+                                    </button>
+                                ) : isWrongNetwork ? (
+                                    <button
+                                        onClick={() => tonConnectUI.disconnect()}
+                                        style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: "#7f1d1d", color: "#fecaca", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                                    >
+                                        Disconnect mainnet wallet — testnet required
                                     </button>
                                 ) : (
                                     <button
