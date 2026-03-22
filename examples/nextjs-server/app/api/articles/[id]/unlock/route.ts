@@ -11,6 +11,7 @@ import {
 import { getPaymentConfig } from "../../../../../lib/payment-config";
 import {
     createPaymentAttemptForArticle,
+    getPaymentAttemptById,
     getPublishedArticleById,
     markPaymentAttemptAsFailed,
     markPaymentAttemptAsRequired,
@@ -35,6 +36,9 @@ export async function POST(
     const price = getPriceTier(article.readCount);
     const hasPaymentSignature = Boolean(request.headers.get(HEADER_PAYMENT_SIGNATURE));
     let paymentAttemptId = request.headers.get(PAYMENT_ATTEMPT_HEADER);
+    const existingAttempt = paymentAttemptId
+        ? await getPaymentAttemptById(paymentAttemptId)
+        : null;
 
     if (!paymentAttemptId && !hasPaymentSignature) {
         const attempt = await createPaymentAttemptForArticle(id);
@@ -65,6 +69,7 @@ export async function POST(
             network,
             assetAddress,
             amountAtomic,
+            paymentMethod: existingAttempt?.paymentMethod ?? "x402",
         });
 
         if (!updatedArticle) {
@@ -105,7 +110,7 @@ export async function POST(
 
     if (paymentAttemptId && hasPaymentSignature) {
         await markPaymentAttemptAsSubmitted(paymentAttemptId, {
-            paymentMethod: "x402",
+            paymentMethod: existingAttempt?.paymentMethod ?? "x402",
         });
     }
 

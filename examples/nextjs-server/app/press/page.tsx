@@ -7,10 +7,10 @@ import {
     HEADER_PAYMENT_REQUIRED,
     HEADER_PAYMENT_SIGNATURE,
 } from "@ton-x402/core";
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { beginCell, Address } from "@ton/core";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
 
 type Contributor = {
     name: string;
@@ -43,12 +43,14 @@ type UnlockPayload = {
         category: string;
         location: string;
         readCount: number;
-        nextPriceDisplay: string;
+        nextPriceDisplay?: string;
         contributors: Contributor[];
     };
     payment: {
         message: string;
-        pricingTier: string;
+        pricingTier?: string;
+        paymentAttemptId?: string | null;
+        txHash?: string | null;
     };
 };
 
@@ -59,7 +61,89 @@ type PaymentAttempt = {
     assetAddress: string;
     status: string;
     network: string;
+    paymentMethod?: "x402" | "tonconnect";
+    payerWallet?: string | null;
+    txHash?: string | null;
     createdAt: string;
+    updatedAt?: string;
+    confirmedPayment?: {
+        id: string;
+        txHash: string;
+        payerWallet: string;
+        totalAmountAtomic: string;
+        assetAddress: string;
+        network: string;
+        settledAt: string;
+    } | null;
+    unlockGrant?: {
+        id: string;
+        granteeWallet: string;
+        grantedAt: string;
+        revokedAt: string | null;
+    } | null;
+};
+
+type PaymentEndpoints = {
+    unlock: string;
+    content: string;
+    access: string;
+    paymentAttempt: string;
+    paymentSubmitted: string;
+};
+
+type AccessState = {
+    articleId: string;
+    wallet: string | null;
+    unlocked: boolean;
+    unlockGrant: null | {
+        id: string;
+        grantedAt: string;
+        confirmedPaymentId: string;
+    };
+    confirmedPayment: null | {
+        id: string;
+        paymentAttemptId: string;
+        txHash: string;
+        amountAtomic: string;
+        assetAddress: string;
+        network: string;
+        settledAt: string;
+    };
+    paywall?: {
+        priceAtomic: string;
+        priceDisplay: string;
+        priceTier: string;
+        readCount: number;
+    };
+};
+
+type ContentResponse = {
+    article: {
+        id: string;
+        slug: string;
+        title: string;
+        author: string;
+        location: string;
+        category: string;
+        content: string;
+        readCount: number;
+        contributors: Contributor[];
+    };
+    access: AccessState | null;
+};
+
+type PaymentIntentResponse = {
+    paymentAttempt: PaymentAttempt;
+    article: {
+        id: string;
+        title: string;
+        priceAtomic: string;
+        priceDisplay: string;
+        priceTier: string;
+        contributors: Contributor[];
+    };
+    access: AccessState | null;
+    endpoints: PaymentEndpoints;
 };
 
 type TelegramContext = {
@@ -67,6 +151,27 @@ type TelegramContext = {
     firstName?: string;
     colorScheme?: string;
 };
+
+function getStoredAttemptKey(articleId: string) {
+    return `press-protocol:payment-attempt:${articleId}`;
+}
+
+function readStoredAttemptId(articleId: string) {
+    if (typeof window === "undefined") return null;
+    return window.sessionStorage.getItem(getStoredAttemptKey(articleId));
+}
+
+function writeStoredAttemptId(articleId: string, attemptId: string | null) {
+    if (typeof window === "undefined") return;
+
+    const key = getStoredAttemptKey(articleId);
+    if (!attemptId) {
+        window.sessionStorage.removeItem(key);
+        return;
+    }
+
+    window.sessionStorage.setItem(key, attemptId);
+}
 
 function PressPageContent() {
     const searchParams = useSearchParams();
@@ -76,15 +181,16 @@ function PressPageContent() {
     const [unlockPayload, setUnlockPayload] = useState<UnlockPayload | null>(null);
     const [paymentRequired, setPaymentRequired] = useState<any>(null);
     const [paymentAttempt, setPaymentAttempt] = useState<PaymentAttempt | null>(null);
+    const [paymentEndpoints, setPaymentEndpoints] = useState<PaymentEndpoints | null>(null);
     const [status, setStatus] = useState<
         "loading" | "ready" | "awaiting_payment" | "processing" | "unlocked" | "error"
     >("loading");
-    const [error, setError] = useState<string>("");
+    const [error, setError] = useState("");
     const [telegram, setTelegram] = useState<TelegramContext>({ isTelegram: false });
 
     const [tonConnectUI] = useTonConnectUI();
     const rawAddress = useTonAddress(false);
-    const isConnected = !!rawAddress;
+    const isConnected = rawAddress.length > 0;
 
     useEffect(() => {
         const tg = (window as any)?.Telegram?.WebApp;
@@ -100,6 +206,110 @@ function PressPageContent() {
         });
     }, []);
 
+    function rememberAttempt(nextAttempt: PaymentAttempt | null, endpoints?: PaymentEndpoints | null) {
+        setPaymentAttempt(nextAttempt);
+        if (endpoints) {
+            setPaymentEndpoints(endpoints);
+        }
+
+        writeStoredAttemptId(articleId, nextAttempt?.id ?? null);
+    }
+
+    async function fetchArticleMetadata(): Promise<Article> {
+        const response = await fetch(`/api/articles/${articleId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data?.error || "Failed to load article");
+        }
+
+        return data.article as Article;
+    }
+
+    async function fetchPaymentAttemptStatus(attemptId: string) {
+        const response = await fetch(`/api/payment-attempts/${attemptId}`);
+        if (!response.ok) {
+            if (response.status === 404) {
+                writeStoredAttemptId(articleId, null);
+                return null;
+            }
+
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.error || "Failed to load payment attempt status");
+        }
+
+        const data = await response.json();
+        return data.paymentAttempt as PaymentAttempt;
+    }
+
+    async function syncPaymentAttempt(attemptId: string) {
+        const nextAttempt = await fetchPaymentAttemptStatus(attemptId);
+        if (nextAttempt) {
+            rememberAttempt(nextAttempt);
+        }
+        return nextAttempt;
+    }
+
+    async function restoreUnlockedArticle(
+        wallet: string,
+        paymentOverride?: UnlockPayload["payment"],
+    ) {
+        const contentResponse = await fetch(
+            `/api/articles/${articleId}/content?wallet=${encodeURIComponent(wallet)}`,
+        );
+
+        if (!contentResponse.ok) {
+            return false;
+        }
+
+        const contentData = (await contentResponse.json()) as ContentResponse;
+        const latestArticle = await fetchArticleMetadata().catch(() => article);
+
+        if (latestArticle) {
+            setArticle(latestArticle);
+        }
+
+        const confirmedPayment = contentData.access?.confirmedPayment;
+        if (confirmedPayment?.paymentAttemptId) {
+            writeStoredAttemptId(articleId, confirmedPayment.paymentAttemptId);
+            const latestAttempt = await fetchPaymentAttemptStatus(confirmedPayment.paymentAttemptId).catch(
+                () => null,
+            );
+            if (latestAttempt) {
+                setPaymentAttempt(latestAttempt);
+            }
+        }
+
+        setPaymentRequired(null);
+        setUnlockPayload({
+            article: {
+                id: contentData.article.id,
+                title: contentData.article.title,
+                author: contentData.article.author,
+                content: contentData.article.content,
+                category: contentData.article.category,
+                location: contentData.article.location,
+                readCount: contentData.article.readCount,
+                nextPriceDisplay: latestArticle?.priceDisplay,
+                contributors: contentData.article.contributors,
+            },
+            payment: {
+                message: paymentOverride?.message ?? "Access restored from your wallet.",
+                pricingTier:
+                    paymentOverride?.pricingTier ??
+                    latestArticle?.priceTier ??
+                    article?.priceTier,
+                paymentAttemptId:
+                    paymentOverride?.paymentAttemptId ??
+                    confirmedPayment?.paymentAttemptId ??
+                    null,
+                txHash: paymentOverride?.txHash ?? confirmedPayment?.txHash ?? null,
+            },
+        });
+        setStatus("unlocked");
+        return true;
+    }
+
     useEffect(() => {
         let cancelled = false;
 
@@ -109,17 +319,12 @@ function PressPageContent() {
             setUnlockPayload(null);
             setPaymentRequired(null);
             setPaymentAttempt(null);
+            setPaymentEndpoints(null);
 
             try {
-                const response = await fetch(`/api/articles/${articleId}`);
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data?.error || "Failed to load article");
-                }
-
+                const nextArticle = await fetchArticleMetadata();
                 if (!cancelled) {
-                    setArticle(data.article);
+                    setArticle(nextArticle);
                     setStatus("ready");
                 }
             } catch (err) {
@@ -137,6 +342,68 @@ function PressPageContent() {
         };
     }, [articleId]);
 
+    useEffect(() => {
+        if (!article) return;
+
+        let cancelled = false;
+
+        async function restorePersistedState() {
+            try {
+                const storedAttemptId = readStoredAttemptId(articleId);
+                if (storedAttemptId) {
+                    const storedAttempt = await fetchPaymentAttemptStatus(storedAttemptId);
+                    if (!cancelled && storedAttempt) {
+                        setPaymentAttempt(storedAttempt);
+                    }
+                }
+
+                if (!rawAddress) {
+                    return;
+                }
+
+                const accessResponse = await fetch(
+                    `/api/articles/${articleId}/access?wallet=${encodeURIComponent(rawAddress)}`,
+                );
+                const accessData = (await accessResponse.json()) as AccessState;
+
+                if (!accessResponse.ok || !accessData.unlocked) {
+                    return;
+                }
+
+                if (accessData.confirmedPayment?.paymentAttemptId) {
+                    writeStoredAttemptId(articleId, accessData.confirmedPayment.paymentAttemptId);
+                    const confirmedAttempt = await fetchPaymentAttemptStatus(
+                        accessData.confirmedPayment.paymentAttemptId,
+                    ).catch(() => null);
+
+                    if (!cancelled && confirmedAttempt) {
+                        setPaymentAttempt(confirmedAttempt);
+                    }
+                }
+
+                if (!cancelled) {
+                    await restoreUnlockedArticle(rawAddress, {
+                        message: "Access restored from your wallet.",
+                        pricingTier: article.priceTier,
+                        paymentAttemptId: accessData.confirmedPayment?.paymentAttemptId ?? null,
+                        txHash: accessData.confirmedPayment?.txHash ?? null,
+                    });
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setError((err as Error).message);
+                    setStatus("error");
+                }
+            }
+        }
+
+        restorePersistedState();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [articleId, article?.id, article?.priceTier, rawAddress]);
+
     const contributorTotal = useMemo(
         () =>
             (unlockPayload?.article.contributors ?? article?.contributors ?? []).reduce(
@@ -146,7 +413,6 @@ function PressPageContent() {
         [article, unlockPayload],
     );
 
-    // Step 1: create payment attempt + get 402 payment requirements
     async function handlePay() {
         if (!article) return;
 
@@ -154,58 +420,92 @@ function PressPageContent() {
         setError("");
 
         try {
-            let attemptId = paymentAttempt?.id ?? null;
+            let activeAttempt = paymentAttempt;
+            let endpoints = paymentEndpoints;
 
-            if (!attemptId) {
+            if (!activeAttempt) {
                 const intentResponse = await fetch(`/api/articles/${article.id}/payment-intent`, {
                     method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        paymentMethod: "tonconnect",
+                        payerWallet: rawAddress || undefined,
+                    }),
                 });
-                const intentData = await intentResponse.json();
+                const intentData = (await intentResponse.json()) as PaymentIntentResponse & {
+                    error?: string;
+                };
 
                 if (!intentResponse.ok) {
                     throw new Error(intentData?.error || "Failed to create payment attempt");
                 }
 
-                attemptId = intentData.paymentAttempt?.id ?? null;
-                setPaymentAttempt(intentData.paymentAttempt ?? null);
+                activeAttempt = intentData.paymentAttempt;
+                endpoints = intentData.endpoints;
+                rememberAttempt(activeAttempt, endpoints);
+
+                if (rawAddress && intentData.access?.unlocked) {
+                    const restored = await restoreUnlockedArticle(rawAddress, {
+                        message: "Access restored from your wallet.",
+                        pricingTier: article.priceTier,
+                        paymentAttemptId: intentData.access.confirmedPayment?.paymentAttemptId ?? null,
+                        txHash: intentData.access.confirmedPayment?.txHash ?? null,
+                    });
+                    if (restored) {
+                        return;
+                    }
+                }
             }
 
-            const response = await fetch(`/api/articles/${article.id}/unlock`, {
-                method: "POST",
-                headers: attemptId
-                    ? { "x-press-payment-attempt-id": attemptId }
-                    : undefined,
-            });
+            const unlockResponse = await fetch(
+                endpoints?.unlock ?? `/api/articles/${article.id}/unlock`,
+                {
+                    method: "POST",
+                    headers: activeAttempt?.id
+                        ? { "x-press-payment-attempt-id": activeAttempt.id }
+                        : undefined,
+                },
+            );
 
-            if (response.status === 402) {
-                const encoded = response.headers.get(HEADER_PAYMENT_REQUIRED);
+            if (unlockResponse.status === 402) {
+                const encoded = unlockResponse.headers.get(HEADER_PAYMENT_REQUIRED);
                 const details = encoded ? decodePaymentRequired(encoded) : null;
-                const responseAttemptId = response.headers.get("x-press-payment-attempt-id");
-                if (responseAttemptId && !paymentAttempt) {
-                    setPaymentAttempt((current) =>
-                        current ?? {
-                            id: responseAttemptId,
-                            articleId: article.id,
-                            expectedAmountAtomic: article.priceAtomic,
-                            assetAddress: details?.accepts?.[0]?.asset ?? "TON",
-                            status: "payment_required",
-                            network: details?.accepts?.[0]?.network ?? "testnet",
-                            createdAt: new Date().toISOString(),
-                        },
+                const responseAttemptId = unlockResponse.headers.get("x-press-payment-attempt-id");
+
+                if (responseAttemptId && (!activeAttempt || responseAttemptId !== activeAttempt.id)) {
+                    const responseAttempt = await fetchPaymentAttemptStatus(responseAttemptId).catch(
+                        () => null,
                     );
+                    if (responseAttempt) {
+                        rememberAttempt(responseAttempt, endpoints);
+                    }
                 }
+
                 setPaymentRequired(details);
                 setStatus("awaiting_payment");
                 return;
             }
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data?.error || "Failed to unlock article");
+            const unlockData = await unlockResponse.json().catch(() => null);
+            if (!unlockResponse.ok) {
+                throw new Error(unlockData?.error || "Failed to unlock article");
             }
 
-            setUnlockPayload(data);
+            if (rawAddress) {
+                const restored = await restoreUnlockedArticle(rawAddress, {
+                    message: unlockData?.payment?.message ?? "Payment confirmed. Full article unlocked.",
+                    pricingTier: unlockData?.payment?.pricingTier ?? article.priceTier,
+                    paymentAttemptId: unlockData?.payment?.paymentAttemptId ?? activeAttempt?.id ?? null,
+                    txHash: unlockData?.payment?.txHash ?? null,
+                });
+                if (restored) {
+                    return;
+                }
+            }
+
+            setUnlockPayload(unlockData);
             setStatus("unlocked");
         } catch (err) {
             setError((err as Error).message);
@@ -213,13 +513,17 @@ function PressPageContent() {
         }
     }
 
-    // Step 2: sign + broadcast via TonConnect, retry unlock with PAYMENT-SIGNATURE
     async function handleWalletPay() {
         if (!rawAddress) {
             tonConnectUI.openModal();
             return;
         }
-        if (!paymentRequired || !article) return;
+
+        if (!paymentRequired || !article || !paymentAttempt) {
+            setError("Create a payment request before opening the wallet.");
+            setStatus("error");
+            return;
+        }
 
         const tonOption = paymentRequired.accepts?.[0];
         if (!tonOption) {
@@ -232,42 +536,71 @@ function PressPageContent() {
         setError("");
 
         try {
-            // Resolve sender's BSA USD jetton wallet address
             const jwRes = await fetch(
                 `/api/press/jetton-wallet?owner=${encodeURIComponent(rawAddress)}`,
             );
-            if (!jwRes.ok) throw new Error("Failed to resolve BSA USD wallet address");
-            const { walletAddress: senderJettonWallet } = await jwRes.json();
+            if (!jwRes.ok) {
+                throw new Error("Failed to resolve BSA USD wallet address");
+            }
 
+            const { walletAddress: senderJettonWallet } = await jwRes.json();
             const queryId = generateQueryId();
 
-            // Build TEP-74 Jetton transfer body
             const jettonTransferBody = beginCell()
-                .storeUint(0xf8a7ea5, 32)                       // op::transfer
-                .storeUint(BigInt(queryId), 64)                  // query_id
-                .storeCoins(BigInt(tonOption.amount))             // jetton amount
-                .storeAddress(Address.parse(tonOption.payTo))     // destination
-                .storeAddress(Address.parse(rawAddress))          // response_destination (excess back)
+                .storeUint(0xf8a7ea5, 32)
+                .storeUint(BigInt(queryId), 64)
+                .storeCoins(BigInt(tonOption.amount))
+                .storeAddress(Address.parse(tonOption.payTo))
+                .storeAddress(Address.parse(rawAddress))
                 .storeMaybeRef(null)
-                .storeCoins(1_000_000n)                          // forward_ton_amount (0.001 TON)
+                .storeCoins(1_000_000n)
                 .storeBit(0)
-                .storeUint(0, 32)                                // comment prefix
-                .storeStringTail(`x402:${queryId}`)              // correlation comment
+                .storeUint(0, 32)
+                .storeStringTail(`x402:${queryId}`)
                 .endCell();
 
-            // TonConnect: wallet signs + broadcasts, returns BOC
             const result = await tonConnectUI.sendTransaction({
                 validUntil: Math.floor(Date.now() / 1000) + 300,
                 messages: [
                     {
                         address: senderJettonWallet,
-                        amount: "70000000", // 0.07 TON gas
+                        amount: "70000000",
                         payload: jettonTransferBody.toBoc().toString("base64"),
                     },
                 ],
             });
 
-            // Encode PAYMENT-SIGNATURE header (x402 format)
+            if (!result?.boc) {
+                throw new Error("Wallet did not return a signed BOC for verification");
+            }
+
+            const submittedResponse = await fetch(
+                paymentEndpoints?.paymentSubmitted ??
+                    `/api/payment-attempts/${paymentAttempt.id}/submitted`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        payerWallet: rawAddress,
+                        queryId,
+                        paymentMethod: "tonconnect",
+                    }),
+                },
+            );
+
+            const submittedData = await submittedResponse.json().catch(() => null);
+            if (!submittedResponse.ok) {
+                throw new Error(submittedData?.error || "Failed to persist submitted payment attempt");
+            }
+
+            if (submittedData?.paymentAttempt) {
+                rememberAttempt(submittedData.paymentAttempt, paymentEndpoints);
+            }
+
+            await syncPaymentAttempt(paymentAttempt.id).catch(() => null);
+
             const encodedPayload = encodePaymentPayload({
                 scheme: "ton-v1",
                 network: tonOption.network,
@@ -276,48 +609,79 @@ function PressPageContent() {
                 queryId,
             });
 
-            const headers: Record<string, string> = {
+            const unlockHeaders: Record<string, string> = {
                 [HEADER_PAYMENT_SIGNATURE]: encodedPayload,
+                "x-press-payment-attempt-id": paymentAttempt.id,
             };
-            if (paymentAttempt?.id) {
-                headers["x-press-payment-attempt-id"] = paymentAttempt.id;
+
+            const unlockResponse = await fetch(
+                paymentEndpoints?.unlock ?? `/api/articles/${article.id}/unlock`,
+                {
+                    method: "POST",
+                    headers: unlockHeaders,
+                },
+            );
+
+            const unlockData = await unlockResponse.json().catch(() => null);
+            const latestAttempt = await syncPaymentAttempt(paymentAttempt.id).catch(() => null);
+
+            if (!unlockResponse.ok) {
+                if (latestAttempt?.unlockGrant) {
+                    const restored = await restoreUnlockedArticle(rawAddress, {
+                        message: "Access restored after payment confirmation.",
+                        pricingTier: article.priceTier,
+                        paymentAttemptId: latestAttempt.id,
+                        txHash:
+                            latestAttempt.confirmedPayment?.txHash ??
+                            latestAttempt.txHash ??
+                            null,
+                    });
+                    if (restored) {
+                        return;
+                    }
+                }
+
+                throw new Error(unlockData?.error || "Payment confirmation failed");
             }
 
-            // Retry unlock — facilitator broadcasts (or detects pre-broadcast), polls, confirms
-            const unlockRes = await fetch(`/api/articles/${article.id}/unlock`, {
-                method: "POST",
-                headers,
+            const restored = await restoreUnlockedArticle(rawAddress, {
+                message: unlockData?.payment?.message ?? "Payment confirmed. Full article unlocked.",
+                pricingTier: unlockData?.payment?.pricingTier ?? article.priceTier,
+                paymentAttemptId: unlockData?.payment?.paymentAttemptId ?? paymentAttempt.id,
+                txHash:
+                    unlockData?.payment?.txHash ??
+                    latestAttempt?.confirmedPayment?.txHash ??
+                    latestAttempt?.txHash ??
+                    null,
             });
 
-            const data = await unlockRes.json();
-            if (!unlockRes.ok) {
-                throw new Error(data?.error || "Payment confirmation failed");
+            if (!restored) {
+                setUnlockPayload(unlockData);
+                setStatus("unlocked");
             }
-
-            setUnlockPayload(data);
-            setStatus("unlocked");
         } catch (err) {
-            const msg = (err as Error).message;
+            const message = (err as Error).message;
             if (
-                msg.toLowerCase().includes("user rejected") ||
-                msg.toLowerCase().includes("user declined")
+                message.toLowerCase().includes("user rejected") ||
+                message.toLowerCase().includes("user declined")
             ) {
                 setStatus("awaiting_payment");
                 return;
             }
-            setError(msg);
+
+            setError(message);
             setStatus("error");
         }
     }
 
     const visibleContributors = unlockPayload?.article.contributors ?? article?.contributors ?? [];
     const activePrice = article?.priceDisplay ?? "Loading...";
+    const unlockMessage = unlockPayload?.payment.message;
+    const unlockTxHash = unlockPayload?.payment.txHash;
 
     return (
         <div style={{ minHeight: "100vh", background: "#0a0f1e", color: "white", fontFamily: "sans-serif" }}>
             <div style={{ maxWidth: 720, margin: "0 auto", padding: "1.25rem 1rem 3rem" }}>
-
-                {/* Header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: "1rem" }}>
                     <a href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
                         <div style={{ background: "#14b8a6", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 14, color: "#0a0f1e" }}>P</div>
@@ -383,7 +747,6 @@ function PressPageContent() {
                             By {article.author} · Pay once, reward every contributor behind the story.
                         </p>
 
-                        {/* Article body */}
                         <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 18, padding: "1.25rem", marginBottom: "1rem" }}>
                             <div style={{ fontSize: 15, color: "#e2e8f0", lineHeight: 1.8, marginBottom: "1rem" }}>{article.preview}</div>
                             {status === "unlocked" && unlockPayload ? (
@@ -402,7 +765,6 @@ function PressPageContent() {
                             )}
                         </div>
 
-                        {/* Pricing + contributor split */}
                         <div style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 18, padding: "1.25rem", marginBottom: "1rem" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "1rem", gap: 12 }}>
                                 <div>
@@ -431,7 +793,6 @@ function PressPageContent() {
                             </p>
                         </div>
 
-                        {/* awaiting_payment: TonConnect wallet signing */}
                         {status === "awaiting_payment" && paymentRequired && (
                             <div style={{ background: "#082f49", border: "1px solid #0ea5e9", borderRadius: 16, padding: "1rem", marginBottom: "1rem" }}>
                                 <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Payment request ready</div>
@@ -439,7 +800,7 @@ function PressPageContent() {
                                     {paymentRequired.accepts?.[0]?.amount} atomic BSA USD → {paymentRequired.accepts?.[0]?.payTo?.slice(0, 10)}…
                                     {paymentAttempt && (
                                         <span style={{ display: "block", marginTop: 4, color: "#93c5fd" }}>
-                                            attempt: {paymentAttempt.id}
+                                            attempt: {paymentAttempt.id} · {paymentAttempt.status}
                                         </span>
                                     )}
                                 </div>
@@ -461,18 +822,24 @@ function PressPageContent() {
                             </div>
                         )}
 
-                        {/* unlocked confirmation */}
                         {status === "unlocked" && unlockPayload && (
                             <div style={{ background: "#14b8a611", border: "1px solid #14b8a633", borderRadius: 16, padding: "1rem", marginBottom: "1rem" }}>
                                 <div style={{ fontSize: 14, color: "#14b8a6", fontWeight: 700, marginBottom: 6 }}>Article unlocked</div>
-                                <div style={{ fontSize: 13, color: "#d1fae5", marginBottom: 6 }}>{unlockPayload.payment.message}</div>
+                                <div style={{ fontSize: 13, color: "#d1fae5", marginBottom: 6 }}>{unlockMessage}</div>
                                 <div style={{ fontSize: 12, color: "#94a3b8" }}>
-                                    Reader count is now {unlockPayload.article.readCount.toLocaleString()}. Next tier price: {unlockPayload.article.nextPriceDisplay}.
+                                    Reader count is now {unlockPayload.article.readCount.toLocaleString()}.
+                                    {unlockPayload.article.nextPriceDisplay
+                                        ? ` Current market price: ${unlockPayload.article.nextPriceDisplay}.`
+                                        : ""}
                                 </div>
+                                {unlockTxHash && (
+                                    <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6, fontFamily: "monospace" }}>
+                                        tx: {unlockTxHash}
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        {/* Primary CTA */}
                         {status !== "unlocked" && status !== "awaiting_payment" && (
                             <button
                                 onClick={handlePay}
@@ -495,7 +862,7 @@ function PressPageContent() {
                         )}
 
                         <div style={{ textAlign: "center", fontSize: 12, color: "#64748b" }}>
-                            Telegram-native reading · TON settlement · transparent contributor economics
+                            Telegram-native reading · TON settlement · persistent wallet-based unlocks
                         </div>
                     </>
                 )}

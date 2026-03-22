@@ -337,6 +337,7 @@ export async function recordConfirmedArticleUnlock(args: {
     network: string;
     assetAddress: string;
     amountAtomic: string;
+    paymentMethod?: "x402" | "tonconnect";
 }) {
     const db = getDb();
     const article = await getPublishedArticleById(args.articleId);
@@ -363,7 +364,7 @@ export async function recordConfirmedArticleUnlock(args: {
                 assetAddress: args.assetAddress,
                 network: args.network,
                 status: "confirmed",
-                paymentMethod: "x402",
+                paymentMethod: args.paymentMethod ?? "x402",
                 facilitatorUrl: env.facilitatorUrl,
                 queryId: args.queryId ?? null,
                 txHash: args.txHash,
