@@ -297,11 +297,26 @@ function PressPageContent() {
             setUnlockPayload(data);
             setStatus("unlocked");
         } catch (err) {
-            const msg = (err as Error).message;
+            const msg = (err as Error).message ?? String(err);
             if (
                 msg.toLowerCase().includes("user rejected") ||
-                msg.toLowerCase().includes("user declined")
+                msg.toLowerCase().includes("user declined") ||
+                msg.toLowerCase().includes("transaction was cancelled")
             ) {
+                // User cancelled — keep awaiting_payment state so they can retry
+                setStatus("awaiting_payment");
+                return;
+            }
+            if (
+                msg.toLowerCase().includes("transaction was not sent") ||
+                msg.toLowerCase().includes("no request received") ||
+                msg.toLowerCase().includes("ton_connect_sdk_error")
+            ) {
+                // Telegram wallet handoff failed — returnStrategy may not have been set
+                // or the wallet app couldn't return. Show a friendly retry message.
+                setError(
+                    "Wallet didn't complete the transaction. If you approved it in the wallet app, tap 'Pay' again — the payment may still be confirmed on-chain.",
+                );
                 setStatus("awaiting_payment");
                 return;
             }
@@ -435,6 +450,11 @@ function PressPageContent() {
                         {status === "awaiting_payment" && paymentRequired && (
                             <div style={{ background: "#082f49", border: "1px solid #0ea5e9", borderRadius: 16, padding: "1rem", marginBottom: "1rem" }}>
                                 <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Payment request ready</div>
+                                {error && (
+                                    <div style={{ fontSize: 12, color: "#fbbf24", background: "#1c1400", border: "1px solid #92400e", borderRadius: 8, padding: "8px 10px", marginBottom: 10 }}>
+                                        {error}
+                                    </div>
+                                )}
                                 <div style={{ fontSize: 12, color: "#bfdbfe", fontFamily: "monospace", marginBottom: 12 }}>
                                     {paymentRequired.accepts?.[0]?.amount} atomic BSA USD → {paymentRequired.accepts?.[0]?.payTo?.slice(0, 10)}…
                                     {paymentAttempt && (
